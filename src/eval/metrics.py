@@ -56,7 +56,7 @@ def compute_classification_metrics(y_true, y_pred, y_prob, class_names):
         "macro_f1": f1_score(y_true, y_pred, average="macro", zero_division=0),
         "weighted_f1": f1_score(y_true, y_pred, average="weighted", zero_division=0),
         "micro_f1": f1_score(y_true, y_pred, average="micro", zero_division=0),
-    }
+    }   
 
     # --- Macro AUC ---
     try:

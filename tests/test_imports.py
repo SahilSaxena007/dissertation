@@ -5,7 +5,7 @@ Quick test to verify all module imports work (no runtime yet).
 print("Testing imports...")
 
 try:
-    from eval import performance_analysis
+    from eval import orchestrator
     print("✅ eval.performance_analysis imported")
 except Exception as e:
     print(f"❌ eval.performance_analysis: {e}")

@@ -33,7 +33,7 @@ from ModelsFinal import (
 )
 
 # Import your dissertation performance analysis extension
-from eval.performance_analysis import analyze_model_performance
+from eval.orchestrator import analyze_model_performance
 
 
 # ─────────────────────────────────────────────────────────────
