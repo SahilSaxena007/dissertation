@@ -1,0 +1,49 @@
+section,model_name,timestamp,metric,value
+Header,NeuralNet,2025-11-19T17:39:42.059967,N/A,N/A
+Overall Metrics,NeuralNet,,accuracy,0.7155
+Overall Metrics,NeuralNet,,macro_precision,0.7065
+Overall Metrics,NeuralNet,,macro_recall,0.7164
+Overall Metrics,NeuralNet,,macro_f1,0.7085
+Overall Metrics,NeuralNet,,weighted_f1,0.7081
+Overall Metrics,NeuralNet,,micro_f1,0.7155
+Overall Metrics,NeuralNet,,macro_auc,0.8997
+Overall Metrics,NeuralNet,,brier,nan
+Overall Metrics,NeuralNet,,logloss,0.5659
+Bootstrap CI (95%),NeuralNet,,accuracy_mean,0.7114
+Bootstrap CI (95%),NeuralNet,,accuracy_ci,"[0.6203, 0.7890]"
+Bootstrap CI (95%),NeuralNet,,macro_precision_mean,0.7012
+Bootstrap CI (95%),NeuralNet,,macro_precision_ci,"[0.6122, 0.7849]"
+Bootstrap CI (95%),NeuralNet,,macro_recall_mean,0.7104
+Bootstrap CI (95%),NeuralNet,,macro_recall_ci,"[0.6152, 0.7972]"
+Bootstrap CI (95%),NeuralNet,,macro_f1_mean,0.7003
+Bootstrap CI (95%),NeuralNet,,macro_f1_ci,"[0.6146, 0.7831]"
+Bootstrap CI (95%),NeuralNet,,weighted_f1_mean,0.7038
+Bootstrap CI (95%),NeuralNet,,weighted_f1_ci,"[0.6056, 0.7844]"
+Bootstrap CI (95%),NeuralNet,,SCD_precision_mean,0.8073
+Bootstrap CI (95%),NeuralNet,,SCD_precision_ci,"[0.6960, 0.8988]"
+Bootstrap CI (95%),NeuralNet,,SCD_recall_mean,0.8417
+Bootstrap CI (95%),NeuralNet,,SCD_recall_ci,"[0.7224, 0.9672]"
+Bootstrap CI (95%),NeuralNet,,SCD_f1_mean,0.8222
+Bootstrap CI (95%),NeuralNet,,SCD_f1_ci,"[0.7214, 0.9072]"
+Bootstrap CI (95%),NeuralNet,,SCD_auc_mean,0.9648
+Bootstrap CI (95%),NeuralNet,,SCD_auc_ci,"[0.9324, 0.9883]"
+Bootstrap CI (95%),NeuralNet,,MCI_precision_mean,0.5797
+Bootstrap CI (95%),NeuralNet,,MCI_precision_ci,"[0.4062, 0.7660]"
+Bootstrap CI (95%),NeuralNet,,MCI_recall_mean,0.4745
+Bootstrap CI (95%),NeuralNet,,MCI_recall_ci,"[0.2956, 0.6802]"
+Bootstrap CI (95%),NeuralNet,,MCI_f1_mean,0.5182
+Bootstrap CI (95%),NeuralNet,,MCI_f1_ci,"[0.3534, 0.6623]"
+Bootstrap CI (95%),NeuralNet,,MCI_auc_mean,0.7936
+Bootstrap CI (95%),NeuralNet,,MCI_auc_ci,"[0.7042, 0.8641]"
+Bootstrap CI (95%),NeuralNet,,AD_precision_mean,0.7166
+Bootstrap CI (95%),NeuralNet,,AD_precision_ci,"[0.5978, 0.8818]"
+Bootstrap CI (95%),NeuralNet,,AD_recall_mean,0.8150
+Bootstrap CI (95%),NeuralNet,,AD_recall_ci,"[0.6521, 0.9316]"
+Bootstrap CI (95%),NeuralNet,,AD_f1_mean,0.7606
+Bootstrap CI (95%),NeuralNet,,AD_f1_ci,"[0.6437, 0.8651]"
+Bootstrap CI (95%),NeuralNet,,AD_auc_mean,0.9342
+Bootstrap CI (95%),NeuralNet,,AD_auc_ci,"[0.8822, 0.9745]"
+Uncertainty Signals,NeuralNet,,entropy_mean,0.4447
+Uncertainty Signals,NeuralNet,,margin_mean,0.6298
+Error Summary,NeuralNet,,total_samples,116
+Error Summary,NeuralNet,,error_rate,0.2845

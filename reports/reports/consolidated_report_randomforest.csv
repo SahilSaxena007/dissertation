@@ -1,0 +1,49 @@
+section,model_name,timestamp,metric,value
+Header,RandomForest,2025-11-19T17:39:39.193711,N/A,N/A
+Overall Metrics,RandomForest,,accuracy,0.7328
+Overall Metrics,RandomForest,,macro_precision,0.7271
+Overall Metrics,RandomForest,,macro_recall,0.7339
+Overall Metrics,RandomForest,,macro_f1,0.7277
+Overall Metrics,RandomForest,,weighted_f1,0.7270
+Overall Metrics,RandomForest,,micro_f1,0.7328
+Overall Metrics,RandomForest,,macro_auc,0.9052
+Overall Metrics,RandomForest,,brier,nan
+Overall Metrics,RandomForest,,logloss,0.5548
+Bootstrap CI (95%),RandomForest,,accuracy_mean,0.7336
+Bootstrap CI (95%),RandomForest,,accuracy_ci,"[0.6420, 0.8149]"
+Bootstrap CI (95%),RandomForest,,macro_precision_mean,0.7292
+Bootstrap CI (95%),RandomForest,,macro_precision_ci,"[0.6478, 0.8100]"
+Bootstrap CI (95%),RandomForest,,macro_recall_mean,0.7349
+Bootstrap CI (95%),RandomForest,,macro_recall_ci,"[0.6558, 0.8027]"
+Bootstrap CI (95%),RandomForest,,macro_f1_mean,0.7265
+Bootstrap CI (95%),RandomForest,,macro_f1_ci,"[0.6437, 0.8023]"
+Bootstrap CI (95%),RandomForest,,weighted_f1_mean,0.7283
+Bootstrap CI (95%),RandomForest,,weighted_f1_ci,"[0.6391, 0.8115]"
+Bootstrap CI (95%),RandomForest,,SCD_precision_mean,0.7991
+Bootstrap CI (95%),RandomForest,,SCD_precision_ci,"[0.6824, 0.9183]"
+Bootstrap CI (95%),RandomForest,,SCD_recall_mean,0.7847
+Bootstrap CI (95%),RandomForest,,SCD_recall_ci,"[0.6493, 0.9286]"
+Bootstrap CI (95%),RandomForest,,SCD_f1_mean,0.7894
+Bootstrap CI (95%),RandomForest,,SCD_f1_ci,"[0.6708, 0.8817]"
+Bootstrap CI (95%),RandomForest,,SCD_auc_mean,0.9483
+Bootstrap CI (95%),RandomForest,,SCD_auc_ci,"[0.8963, 0.9815]"
+Bootstrap CI (95%),RandomForest,,MCI_precision_mean,0.6346
+Bootstrap CI (95%),RandomForest,,MCI_precision_ci,"[0.4775, 0.7698]"
+Bootstrap CI (95%),RandomForest,,MCI_recall_mean,0.5479
+Bootstrap CI (95%),RandomForest,,MCI_recall_ci,"[0.3917, 0.7088]"
+Bootstrap CI (95%),RandomForest,,MCI_f1_mean,0.5836
+Bootstrap CI (95%),RandomForest,,MCI_f1_ci,"[0.4496, 0.6916]"
+Bootstrap CI (95%),RandomForest,,MCI_auc_mean,0.8210
+Bootstrap CI (95%),RandomForest,,MCI_auc_ci,"[0.7401, 0.8941]"
+Bootstrap CI (95%),RandomForest,,AD_precision_mean,0.7539
+Bootstrap CI (95%),RandomForest,,AD_precision_ci,"[0.6451, 0.8831]"
+Bootstrap CI (95%),RandomForest,,AD_recall_mean,0.8719
+Bootstrap CI (95%),RandomForest,,AD_recall_ci,"[0.7564, 0.9726]"
+Bootstrap CI (95%),RandomForest,,AD_f1_mean,0.8065
+Bootstrap CI (95%),RandomForest,,AD_f1_ci,"[0.7203, 0.9037]"
+Bootstrap CI (95%),RandomForest,,AD_auc_mean,0.9467
+Bootstrap CI (95%),RandomForest,,AD_auc_ci,"[0.9066, 0.9804]"
+Uncertainty Signals,RandomForest,,entropy_mean,0.5932
+Uncertainty Signals,RandomForest,,margin_mean,0.4787
+Error Summary,RandomForest,,total_samples,116
+Error Summary,RandomForest,,error_rate,0.2672

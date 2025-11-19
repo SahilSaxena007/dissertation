@@ -22,114 +22,73 @@ def export_error_taxonomy(
 ):
     """
     Create a detailed CSV with one row per test sample.
-    
-    Columns include:
-    - Sample identifiers (sample_id, index)
-    - True and predicted labels
-    - All class probabilities
-    - Uncertainty signals (entropy, margin, confidence)
-    - Correctness flag
-    - Model name & timestamp
-    - Optional metadata (age, sex, scanner, etc.)
-    
-    Parameters
-    ----------
-    y_true : array-like
-        True class labels (numeric 0..C-1).
-    y_pred : array-like
-        Predicted class labels.
-    y_prob : array-like, shape (n_samples, n_classes)
-        Predicted probabilities.
-    class_names : list of str
-        Class names (e.g., ["SCD", "MCI", "AD"]).
-    model_name : str
-        Name of the model (e.g., "CatBoost", "RandomForest", "NeuralNetwork").
-    save_path : str
-        Path to save CSV (e.g., "../reports/tables/error_taxonomy_catboost.csv").
-    sample_ids : array-like, optional
-        Sample identifiers (e.g., RID, patient ID). Default: 0-indexed integers.
-    metadata_df : pd.DataFrame, optional
-        Additional metadata columns (age, sex, scanner, etc.) to include.
-        Should have same length as y_true.
-    
-    Returns
-    -------
-    error_df : pd.DataFrame
-        The exported error taxonomy DataFrame.
     """
-    
-    y_true = np.array(y_true)
-    y_pred = np.array(y_pred)
+
+    y_true = np.array(y_true).reshape(-1)
+    y_pred = np.array(y_pred).reshape(-1)
     y_prob = np.array(y_prob)
+
     n_samples = len(y_true)
     n_classes = len(class_names)
-    
-    # ─────────────────────────────────────────
-    # 1️⃣ COMPUTE UNCERTAINTY SIGNALS
-    # ─────────────────────────────────────────
+
+    # 1️⃣ UNCERTAINTY SIGNALS
     uncertainty_df = compute_uncertainty_signals(y_prob)
-    
-    # ─────────────────────────────────────────
-    # 2️⃣ BUILD ERROR TAXONOMY DATAFRAME
-    # ─────────────────────────────────────────
-    
-    # Sample identifiers
+    entropy = np.array(uncertainty_df["entropy"]).reshape(-1)
+    margin = np.array(uncertainty_df["margin"]).reshape(-1)
+    max_prob = np.array(uncertainty_df["max_prob"]).reshape(-1)
+
+    # 2️⃣ SAMPLE IDS
     if sample_ids is None:
         sample_ids = np.arange(n_samples)
-    
-    error_data = {
-        'sample_id': sample_ids,
-        'sample_index': np.arange(n_samples),
-    }
-    
-    # True and predicted labels
-    error_data['true_label'] = [class_names[int(y)] for y in y_true]
-    error_data['predicted_label'] = [class_names[int(y)] for y in y_pred]
-    error_data['true_label_int'] = y_true
-    error_data['predicted_label_int'] = y_pred
-    
-    # Class probabilities
-    for i, class_name in enumerate(class_names):
-        error_data[f'prob_{class_name}'] = y_prob[:, i]
-    
-    # Uncertainty signals
-    error_data['entropy'] = uncertainty_df['entropy'].values
-    error_data['margin'] = uncertainty_df['margin'].values
-    error_data['max_prob'] = uncertainty_df['max_prob'].values
-    
-    # Correctness flag
-    error_data['is_correct'] = (y_true == y_pred).astype(int)
-    error_data['is_error'] = (~(y_true == y_pred)).astype(int)
-    
-    # Model and timestamp
-    error_data['model_name'] = model_name
-    error_data['timestamp'] = datetime.now().isoformat()
-    
+
+    # 3️⃣ BUILD CLEAN COLUMN-WISE DATA
+    error_data = {}
+
+    error_data["sample_id"] = np.array(sample_ids).reshape(-1)
+    error_data["sample_index"] = np.arange(n_samples)
+
+    # Labels
+    error_data["true_label"] = [class_names[int(y)] for y in y_true]
+    error_data["predicted_label"] = [class_names[int(y)] for y in y_pred]
+    error_data["true_label_int"] = y_true
+    error_data["predicted_label_int"] = y_pred
+
+    # Class probabilities – guaranteed 1D arrays
+    for i, cname in enumerate(class_names):
+        error_data[f"prob_{cname}"] = y_prob[:, i].reshape(-1)
+
+    # Uncertainty – guaranteed 1D arrays
+    error_data["entropy"] = entropy
+    error_data["margin"] = margin
+    error_data["max_prob"] = max_prob
+
+    # Error flags
+    is_correct = (y_true == y_pred).astype(int)
+    error_data["is_correct"] = is_correct
+    error_data["is_error"] = 1 - is_correct
+
+    # Model name and timestamp – REPEAT PER SAMPLE (previous bug fixed)
+    error_data["model_name"] = [model_name] * n_samples
+    error_data["timestamp"] = [datetime.now().isoformat()] * n_samples
+
     # Create DataFrame
     error_df = pd.DataFrame(error_data)
-    
-    # ─────────────────────────────────────────
-    # 3️⃣ ADD OPTIONAL METADATA
-    # ─────────────────────────────────────────
+
+    # Optional metadata
     if metadata_df is not None:
-        # Ensure same length
         if len(metadata_df) != n_samples:
             raise ValueError(
-                f"metadata_df length ({len(metadata_df)}) must match "
-                f"y_true length ({n_samples})"
+                f"metadata_df length {len(metadata_df)} must match {n_samples}"
             )
-        
-        # Concatenate metadata columns
         error_df = pd.concat([error_df, metadata_df.reset_index(drop=True)], axis=1)
-    
-    # ─────────────────────────────────────────
-    # 4️⃣ SAVE TO CSV
-    # ─────────────────────────────────────────
+
+    # Save
     error_df.to_csv(save_path, index=False)
     print(f"✅ Error taxonomy exported to {save_path}")
     print(f"   Rows: {len(error_df)}, Columns: {len(error_df.columns)}")
-    
+
     return error_df
+
 
 
 def error_taxonomy_summary(error_df, class_names):
