@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Instructions
+
+When starting a new session refer to the masterplan.md to get context or remind me to tell you: 'let's continue with the masterplan'
+
 ## Project Overview
 
 Dissertation project: **Human-in-the-Loop (HITL) framework for Alzheimer's disease classification** using ADNI biomarker data. The system classifies patients into three diagnostic stages (**SCD**, **MCI**, **AD**) using an ensemble of CatBoost, Random Forest, and Neural Network models, then decides whether each prediction should be escalated to a clinician for review.
