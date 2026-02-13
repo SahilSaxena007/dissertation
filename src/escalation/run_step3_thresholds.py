@@ -10,10 +10,20 @@ import numpy as np
 from threshold_optimizer import optimize_thresholds_with_sensitivity
 
 
+def build_human_accuracy_grid(min_value: float = 0.85, max_value: float = 0.95, step: float = 0.01):
+    if step <= 0:
+        raise ValueError("step must be > 0.")
+    if min_value > max_value:
+        raise ValueError("min_value must be <= max_value.")
+    # Include max value when floating point error would otherwise drop it.
+    values = np.arange(min_value, max_value + (step / 2.0), step)
+    return [round(float(v), 2) for v in values]
+
+
 def main():
     review_budget = 0.2
     # Literature-guided clinician performance range for sensitivity analysis.
-    human_accuracy_values = [round(v, 2) for v in np.arange(0.85, 0.951, 0.01)]
+    human_accuracy_values = build_human_accuracy_grid(min_value=0.85, max_value=0.95, step=0.01)
 
     # Keep fixed-mode function available, but default to sensitivity-aware mode.
     best = optimize_thresholds_with_sensitivity(

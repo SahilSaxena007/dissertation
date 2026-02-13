@@ -9,6 +9,8 @@ import tensorflow as tf
 from catboost import CatBoostClassifier
 from scikeras.wrappers import KerasClassifier
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.svm import SVC
+from xgboost import XGBClassifier
 from sklearn.feature_selection import SelectKBest, mutual_info_classif
 from sklearn.impute import KNNImputer
 from sklearn.isotonic import IsotonicRegression
@@ -193,6 +195,9 @@ X_df = X_df.select_dtypes(include=["int64", "float64", "int32", "float32"]).copy
 X_all = X_df.to_numpy(dtype=float)
 feature_names = X_df.columns.tolist()
 
+# Capture pre-imputation NaN mask before any imputation occurs
+nan_mask_all = np.isnan(X_all)
+
 all_indices = np.arange(X_all.shape[0], dtype=int)
 train_indices, holdout_indices = train_test_split(
     all_indices,
@@ -221,7 +226,8 @@ cv = RepeatedStratifiedKFold(n_splits=CV_FOLDS, n_repeats=CV_REPEATS, random_sta
 oof_cat_sum = np.zeros((n_samples, n_classes), dtype=float)
 oof_rf_sum = np.zeros((n_samples, n_classes), dtype=float)
 oof_nn_sum = np.zeros((n_samples, n_classes), dtype=float)
-oof_selected_X_sum = np.zeros((n_samples, 12), dtype=float)
+oof_xgb_sum = np.zeros((n_samples, n_classes), dtype=float)
+oof_svm_sum = np.zeros((n_samples, n_classes), dtype=float)
 oof_counts = np.zeros(n_samples, dtype=int)
 oof_sample_ids = train_indices.copy()
 cv_metric_rows = []
@@ -279,20 +285,40 @@ for split_idx, (train_idx, val_idx) in enumerate(cv.split(X_train_all, y_train_a
             ReduceLROnPlateau(monitor="loss", factor=0.5, patience=5, min_lr=1e-6),
         ],
     )
+    xgb_model_fold = XGBClassifier(
+        n_estimators=400,
+        learning_rate=0.01,
+        max_depth=6,
+        random_state=SEED,
+        use_label_encoder=False,
+        eval_metric="mlogloss",
+        verbosity=0,
+    )
+    svm_model_fold = SVC(
+        kernel="rbf",
+        probability=True,
+        random_state=SEED,
+        class_weight="balanced",
+    )
 
     cat_model_fold.fit(X_train_scaled, y_train)
     rf_model_fold.fit(X_train_scaled, y_train)
     nn_model_fold.fit(X_train_scaled, y_train)
+    xgb_model_fold.fit(X_train_scaled, y_train)
+    svm_model_fold.fit(X_train_scaled, y_train)
 
     y_prob_cat_fold = cat_model_fold.predict_proba(X_val_scaled)
     y_prob_rf_fold = rf_model_fold.predict_proba(X_val_scaled)
     y_prob_nn_fold = nn_model_fold.predict_proba(X_val_scaled)
-    y_prob_ens_fold = (y_prob_cat_fold + y_prob_rf_fold + y_prob_nn_fold) / 3.0
+    y_prob_xgb_fold = xgb_model_fold.predict_proba(X_val_scaled)
+    y_prob_svm_fold = svm_model_fold.predict_proba(X_val_scaled)
+    y_prob_ens_fold = (y_prob_cat_fold + y_prob_rf_fold + y_prob_nn_fold + y_prob_xgb_fold + y_prob_svm_fold) / 5.0
 
     oof_cat_sum[val_idx] += y_prob_cat_fold
     oof_rf_sum[val_idx] += y_prob_rf_fold
     oof_nn_sum[val_idx] += y_prob_nn_fold
-    oof_selected_X_sum[val_idx] += X_val_scaled
+    oof_xgb_sum[val_idx] += y_prob_xgb_fold
+    oof_svm_sum[val_idx] += y_prob_svm_fold
     oof_counts[val_idx] += 1
 
     y_val = y_train_all[val_idx]
@@ -300,6 +326,8 @@ for split_idx, (train_idx, val_idx) in enumerate(cv.split(X_train_all, y_train_a
         ("CatBoost_OOF", y_prob_cat_fold),
         ("RandomForest_OOF", y_prob_rf_fold),
         ("NeuralNetwork_OOF", y_prob_nn_fold),
+        ("XGBoost_OOF", y_prob_xgb_fold),
+        ("SVM_OOF", y_prob_svm_fold),
         ("VotingEnsemble_OOF", y_prob_ens_fold),
     ]:
         fold_metrics = summarize_metrics(model_name, y_val, y_prob_fold)
@@ -320,8 +348,54 @@ if np.any(oof_counts == 0):
 oof_cat = oof_cat_sum / oof_counts[:, None]
 oof_rf = oof_rf_sum / oof_counts[:, None]
 oof_nn = oof_nn_sum / oof_counts[:, None]
-oof_selected_X = oof_selected_X_sum / oof_counts[:, None]
-oof_ens = (oof_cat + oof_rf + oof_nn) / 3.0
+oof_xgb = oof_xgb_sum / oof_counts[:, None]
+oof_svm = oof_svm_sum / oof_counts[:, None]
+oof_ens = (oof_cat + oof_rf + oof_nn + oof_xgb + oof_svm) / 5.0
+
+# ---------------------------------------------------------------------
+# Stacked Generalization (Level-1 meta-learner)
+# ---------------------------------------------------------------------
+print("Training stacked generalization meta-learner...")
+X_level1 = np.hstack([oof_cat, oof_rf, oof_nn, oof_xgb, oof_svm])  # (N, 15) for 3 classes x 5 models
+stacking_cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=SEED)
+stacking_meta = LogisticRegression(
+    max_iter=1000, solver="lbfgs", multi_class="multinomial", random_state=SEED
+)
+# CV out-of-sample stacked predictions
+from sklearn.model_selection import cross_val_predict as _cv_predict
+oof_stacked_proba = _cv_predict(
+    stacking_meta, X_level1, y_train_all, cv=stacking_cv, method="predict_proba"
+)
+stacking_meta.fit(X_level1, y_train_all)
+joblib.dump(stacking_meta, "../artifacts/stacking_meta_learner.pkl")
+
+stacked_acc = float(accuracy_score(y_train_all, np.argmax(oof_stacked_proba, axis=1)))
+avg_acc = float(accuracy_score(y_train_all, np.argmax(oof_ens, axis=1)))
+stacked_auc = float(multiclass_auc(y_train_all, oof_stacked_proba))
+avg_auc = float(multiclass_auc(y_train_all, oof_ens))
+print(
+    f"Stacked vs Averaged: "
+    f"Stacked ACC={stacked_acc:.4f} AUC={stacked_auc:.4f} | "
+    f"Averaged ACC={avg_acc:.4f} AUC={avg_auc:.4f}"
+)
+
+np.save("../artifacts/oof_stacked_proba.npy", oof_stacked_proba)
+stacking_comparison = {
+    "stacked_accuracy": stacked_acc,
+    "stacked_auc": stacked_auc,
+    "averaged_accuracy": avg_acc,
+    "averaged_auc": avg_auc,
+    "stacked_is_better": bool(stacked_auc > avg_auc),
+}
+with open("../artifacts/stacking_comparison.json", "w", encoding="utf-8") as f:
+    json.dump(stacking_comparison, f, indent=2)
+
+# Use stacked ensemble if it outperforms simple average
+if stacked_auc > avg_auc:
+    print("Using stacked ensemble for downstream pipeline.")
+    oof_ens = oof_stacked_proba
+else:
+    print("Simple average outperforms stacking; keeping averaged ensemble.")
 
 # ---------------------------------------------------------------------
 # Probability calibration (Phase 1.1)
@@ -367,6 +441,8 @@ print("Saved CV mean +/- std metrics to ../Outputs/overall_metrics.csv")
 np.save("../artifacts/oof_cat_proba.npy", oof_cat)
 np.save("../artifacts/oof_rf_proba.npy", oof_rf)
 np.save("../artifacts/oof_nn_proba.npy", oof_nn)
+np.save("../artifacts/oof_xgb_proba.npy", oof_xgb)
+np.save("../artifacts/oof_svm_proba.npy", oof_svm)
 np.save("../artifacts/oof_ens_proba.npy", oof_ens)
 np.save("../artifacts/oof_ens_proba_calibrated_sigmoid.npy", oof_ens_sigmoid)
 np.save("../artifacts/oof_ens_proba_calibrated_isotonic.npy", oof_ens_isotonic)
@@ -374,7 +450,6 @@ np.save("../artifacts/oof_ens_proba_calibrated.npy", oof_ens_selected)
 np.save("../artifacts/oof_ens_proba_selected.npy", oof_ens_selected)
 np.save("../artifacts/oof_pred_ens.npy", np.argmax(oof_ens, axis=1))
 np.save("../artifacts/y_oof.npy", y_train_all)
-np.save("../artifacts/X_oof.npy", oof_selected_X)
 np.save("../artifacts/oof_sample_ids.npy", oof_sample_ids)
 
 calibration_summary = {
@@ -429,6 +504,19 @@ joblib.dump(scaler, "../artifacts/scaler.pkl")
 with open("../artifacts/selected_features.json", "w", encoding="utf-8") as f:
     json.dump(selected_features, f, indent=2)
 
+# Compute X_oof from global pipeline (consistent imputer/selector/scaler)
+X_oof_global = scaler.transform(selector.transform(imputer.transform(X_train_all)))
+np.save("../artifacts/X_oof.npy", X_oof_global)
+
+# Project pre-imputation NaN mask through selector to get 12-feature mask
+nan_mask_train = nan_mask_all[train_indices]
+nan_mask_holdout = nan_mask_all[holdout_indices]
+selector_support = selector.get_support()
+nan_mask_oof = nan_mask_train[:, selector_support]
+nan_mask_holdout_selected = nan_mask_holdout[:, selector_support]
+np.save("../artifacts/nan_mask_oof.npy", nan_mask_oof)
+np.save("../artifacts/nan_mask_holdout.npy", nan_mask_holdout_selected)
+
 cat_model = CatBoostClassifier(
     iterations=500,
     learning_rate=0.01,
@@ -455,16 +543,38 @@ nn_model = KerasClassifier(
         ReduceLROnPlateau(monitor="loss", factor=0.5, patience=5, min_lr=1e-6),
     ],
 )
+xgb_model = XGBClassifier(
+    n_estimators=400,
+    learning_rate=0.01,
+    max_depth=6,
+    random_state=SEED,
+    use_label_encoder=False,
+    eval_metric="mlogloss",
+    verbosity=0,
+)
+svm_model = SVC(
+    kernel="rbf",
+    probability=True,
+    random_state=SEED,
+    class_weight="balanced",
+)
 
 cat_model.fit(X_train_scaled, y_train_all)
 rf_model.fit(X_train_scaled, y_train_all)
 nn_model.fit(X_train_scaled, y_train_all)
+xgb_model.fit(X_train_scaled, y_train_all)
+svm_model.fit(X_train_scaled, y_train_all)
 
 joblib.dump(cat_model, "../artifacts/best_model_catboost.pkl")
 joblib.dump(rf_model, "../artifacts/random_forest.pkl")
 nn_model.model_.save("../artifacts/neural_network.h5")
+joblib.dump(xgb_model, "../artifacts/xgboost_model.pkl")
+joblib.dump(svm_model, "../artifacts/svm_model.pkl")
 
-joblib.dump({"catboost": cat_model, "rf": rf_model, "nn": nn_model}, "../artifacts/voting_ensemble.pkl")
+joblib.dump(
+    {"catboost": cat_model, "rf": rf_model, "nn": nn_model, "xgb": xgb_model, "svm": svm_model},
+    "../artifacts/voting_ensemble.pkl",
+)
 
 # ---------------------------------------------------------------------
 # Save strict train/holdout arrays for unseen end-to-end demo

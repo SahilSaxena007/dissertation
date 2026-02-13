@@ -24,10 +24,13 @@ from typing import Any, Dict, Iterable, Tuple
 import numpy as np
 import pandas as pd
 
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+TABLES_DIR = os.path.join(PROJECT_ROOT, "reports", "tables")
+ARTIFACTS_DIR = os.path.join(PROJECT_ROOT, "artifacts")
+
 
 def _load_threshold_inputs() -> Tuple[np.ndarray, np.ndarray]:
-    tables_dir = os.path.join("..", "reports", "tables")
-    thresh_path = os.path.join(tables_dir, "threshold_data.csv")
+    thresh_path = os.path.join(TABLES_DIR, "threshold_data.csv")
     if not os.path.exists(thresh_path):
         raise FileNotFoundError(
             f"Could not find {thresh_path}. "
@@ -104,8 +107,8 @@ def optimize_thresholds(
         num_thresholds=num_thresholds,
     )
 
-    tables_dir = os.path.join("..", "reports", "tables")
-    artifacts_dir = os.path.join("..", "artifacts")
+    tables_dir = TABLES_DIR
+    artifacts_dir = ARTIFACTS_DIR
     os.makedirs(tables_dir, exist_ok=True)
     os.makedirs(artifacts_dir, exist_ok=True)
 
@@ -206,8 +209,8 @@ def optimize_thresholds_with_sensitivity(
     else:
         robust_best = feasible.loc[feasible["expected_policy_accuracy"].idxmax()]
 
-    tables_dir = os.path.join("..", "reports", "tables")
-    artifacts_dir = os.path.join("..", "artifacts")
+    tables_dir = TABLES_DIR
+    artifacts_dir = ARTIFACTS_DIR
     os.makedirs(tables_dir, exist_ok=True)
     os.makedirs(artifacts_dir, exist_ok=True)
 

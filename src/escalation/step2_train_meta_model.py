@@ -23,6 +23,10 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score, classification_report, accuracy_score
 from sklearn.model_selection import StratifiedKFold, cross_val_predict
 
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+TABLES_DIR = os.path.join(PROJECT_ROOT, "reports", "tables")
+ARTIFACTS_DIR = os.path.join(PROJECT_ROOT, "artifacts")
+
 
 FEATURE_COLS = [
     "risk_1_inv_conf",
@@ -99,11 +103,12 @@ def compute_bootstrap_meta_metrics(
     )
 
 
-def train_meta_model():
-    tables_dir = os.path.join("..", "reports", "tables")
-    artifacts_dir = os.path.join("..", "artifacts")
+def train_meta_model(meta_path: str | None = None):
+    tables_dir = TABLES_DIR
+    artifacts_dir = ARTIFACTS_DIR
 
-    meta_path = os.path.join(tables_dir, "step2_meta_dataset.csv")
+    if meta_path is None:
+        meta_path = os.path.join(tables_dir, "step2_meta_dataset.csv")
     if not os.path.exists(meta_path):
         raise FileNotFoundError(
             f"Could not find {meta_path}. "
@@ -164,6 +169,13 @@ def train_meta_model():
     threshold_path = os.path.join(tables_dir, "threshold_data.csv")
     df_threshold.to_csv(threshold_path, index=False)
     print(f"Saved threshold dataset to: {threshold_path}")
+    return {
+        "model_path": model_path,
+        "threshold_data_path": threshold_path,
+        "bootstrap_metrics_path": boot_path,
+        "cv_auc": float(auc),
+        "n_samples": int(X.shape[0]),
+    }
 
 
 if __name__ == "__main__":

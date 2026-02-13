@@ -12,7 +12,10 @@ from typing import Any, Dict, Iterable, Optional, Tuple
 
 import numpy as np
 
-from escalation_config import EscalationConfig
+try:
+    from .escalation_config import EscalationConfig
+except ImportError:
+    from escalation_config import EscalationConfig
 
 
 # ---------------------------------------------------------------------------
@@ -96,17 +99,25 @@ def compute_model_disagreement(preds: Dict[str, int]) -> Dict[str, Any]:
 
 
 def compute_missingness_flags(
-    x_row: np.ndarray, config: EscalationConfig
+    x_row: np.ndarray,
+    config: EscalationConfig,
+    pre_imputation_mask: Optional[np.ndarray] = None,
 ) -> Dict[str, Any]:
     """
-    Simple NaN-based missingness logic.
+    Missingness logic using pre-imputation NaN mask when available.
 
     Parameters
     ----------
-    x_row : (n_features,) array
+    x_row : (n_features,) array (post-imputation, used as fallback)
+    config : EscalationConfig
+    pre_imputation_mask : optional (n_features,) boolean array from before imputation
     """
-    x_row = np.asarray(x_row, dtype=float)
-    mask = np.isnan(x_row)
+    if pre_imputation_mask is not None:
+        mask = np.asarray(pre_imputation_mask, dtype=bool)
+    else:
+        x_row = np.asarray(x_row, dtype=float)
+        mask = np.isnan(x_row)
+
     missing_fraction = float(mask.mean())
     has_missing = bool(mask.any())
     critical_missing = missing_fraction >= config.missing.critical_missing_fraction

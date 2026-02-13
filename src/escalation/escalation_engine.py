@@ -16,14 +16,24 @@ from typing import Dict, Any, List, Optional
 import numpy as np
 import pandas as pd
 
-from escalation_config import ESCALATION_CONFIG, CLASS_NAMES, EscalationConfig
-from escalation_rules import (
-    compute_uncertainty_metrics,
-    compute_model_disagreement,
-    compute_missingness_flags,
-    compute_multimodal_mismatch,
-    compute_shap_instability,
-)
+try:
+    from .escalation_config import ESCALATION_CONFIG, CLASS_NAMES, EscalationConfig
+    from .escalation_rules import (
+        compute_uncertainty_metrics,
+        compute_model_disagreement,
+        compute_missingness_flags,
+        compute_multimodal_mismatch,
+        compute_shap_instability,
+    )
+except ImportError:
+    from escalation_config import ESCALATION_CONFIG, CLASS_NAMES, EscalationConfig
+    from escalation_rules import (
+        compute_uncertainty_metrics,
+        compute_model_disagreement,
+        compute_missingness_flags,
+        compute_multimodal_mismatch,
+        compute_shap_instability,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -40,6 +50,7 @@ def _evaluate_single_case(
     config: EscalationConfig,
     class_names: List[str] = CLASS_NAMES,
     shap_by_model: Optional[Dict[str, np.ndarray]] = None,
+    pre_imputation_mask: Optional[np.ndarray] = None,
 ) -> Dict[str, Any]:
     # Ensemble probabilities
     if probs_ens_override is None:
@@ -54,7 +65,7 @@ def _evaluate_single_case(
 
     unc = compute_uncertainty_metrics(probs_ens, config)
     disagreement = compute_model_disagreement({"catboost": pred_cat, "rf": pred_rf, "nn": pred_nn})
-    missing = compute_missingness_flags(x_row, config)
+    missing = compute_missingness_flags(x_row, config, pre_imputation_mask=pre_imputation_mask)
     multimodal = compute_multimodal_mismatch(x_row, config)
     shap = compute_shap_instability(shap_by_model=shap_by_model)
 
@@ -115,16 +126,21 @@ def run_batch_escalation(
     class_names: List[str] = CLASS_NAMES,
     config: EscalationConfig = ESCALATION_CONFIG,
     shap_values_by_model: Optional[Dict[str, np.ndarray]] = None,
+    nan_mask: Optional[np.ndarray] = None,
 ) -> pd.DataFrame:
-    n_samples = X.shape[0]
+    # Compute probabilities for all available models
+    all_probs = {}
+    for name, model in models.items():
+        all_probs[name] = model.predict_proba(X)
 
-    cat = models["catboost"]
-    rf = models["rf"]
-    nn = models["nn"]
+    # Ensemble = mean of all model probabilities
+    probs_list = list(all_probs.values())
+    probs_ens = np.mean(probs_list, axis=0)
 
-    probs_cat = cat.predict_proba(X)
-    probs_rf = rf.predict_proba(X)
-    probs_nn = nn.predict_proba(X)
+    # For backward compat, extract the 3 core models if available
+    probs_cat = all_probs.get("catboost", probs_list[0])
+    probs_rf = all_probs.get("rf", probs_list[min(1, len(probs_list) - 1)])
+    probs_nn = all_probs.get("nn", probs_list[min(2, len(probs_list) - 1)])
 
     return run_batch_escalation_from_probabilities(
         X=X,
@@ -132,9 +148,11 @@ def run_batch_escalation(
         probs_cat=probs_cat,
         probs_rf=probs_rf,
         probs_nn=probs_nn,
+        probs_ens_override=probs_ens,
         class_names=class_names,
         config=config,
         shap_values_by_model=shap_values_by_model,
+        nan_mask=nan_mask,
     )
 
 
@@ -148,6 +166,7 @@ def run_batch_escalation_from_probabilities(
     class_names: List[str] = CLASS_NAMES,
     config: EscalationConfig = ESCALATION_CONFIG,
     shap_values_by_model: Optional[Dict[str, np.ndarray]] = None,
+    nan_mask: Optional[np.ndarray] = None,
 ) -> pd.DataFrame:
     n_samples = X.shape[0]
     if y_true is None:
@@ -165,6 +184,10 @@ def run_batch_escalation_from_probabilities(
                 if arr.ndim >= 2 and arr.shape[0] > i:
                     shap_row[model_name] = arr[i]
 
+        pre_imp_mask_row = None
+        if nan_mask is not None and i < nan_mask.shape[0]:
+            pre_imp_mask_row = nan_mask[i]
+
         row = _evaluate_single_case(
             x_row=X[i],
             y_true=y_arr[i] if y_true is not None else None,
@@ -175,6 +198,7 @@ def run_batch_escalation_from_probabilities(
             config=config,
             class_names=class_names,
             shap_by_model=shap_row,
+            pre_imputation_mask=pre_imp_mask_row,
         )
         row["sample_id"] = int(i)
         rows.append(row)
@@ -189,6 +213,7 @@ def run_single_escalation(
     class_names: List[str] = CLASS_NAMES,
     config: EscalationConfig = ESCALATION_CONFIG,
     y_true: Optional[int] = None,
+    pre_imputation_mask: Optional[np.ndarray] = None,
 ) -> Dict[str, Any]:
     x_row = np.asarray(x_row, dtype=float)
     if x_row.ndim == 2:
@@ -208,4 +233,5 @@ def run_single_escalation(
         probs_ens_override=None,
         config=config,
         class_names=class_names,
+        pre_imputation_mask=pre_imputation_mask,
     )

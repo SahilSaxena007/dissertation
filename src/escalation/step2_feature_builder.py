@@ -13,26 +13,22 @@ Creates:
 import os
 import pandas as pd
 
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+TABLES_DIR = os.path.join(PROJECT_ROOT, "reports", "tables")
 
-def build_step2_meta_dataset():
-    tables_dir = os.path.join("..", "reports", "tables")
-    preferred_in_path = os.path.join(tables_dir, "escalation_table_oof.csv")
-    fallback_in_path = os.path.join(tables_dir, "escalation_table_testset.csv")
-    out_path = os.path.join(tables_dir, "step2_meta_dataset.csv")
 
-    if os.path.exists(preferred_in_path):
-        in_path = preferred_in_path
-    elif os.path.exists(fallback_in_path):
-        in_path = fallback_in_path
-    else:
-        raise FileNotFoundError(
-            "Could not find escalation input table. "
-            "Run `python .\\escalation\\run_inference_batch.py --source oof` first."
-        )
+RISK_FEATURE_MAP = {
+    "risk_1_inv_conf": lambda df: 1.0 - df["ens_max_prob"],
+    "risk_2_margin": lambda df: df["ens_margin"],
+    "risk_3_entropy": lambda df: df["ens_entropy"],
+    "risk_4_disagreement": lambda df: df["disagreement_score"],
+    "risk_5_missing_fraction": lambda df: df["missing_fraction"],
+    "risk_6_critical_missing": lambda df: df["critical_missing"].astype(int),
+    "risk_7_multimodal_mismatch": lambda df: df["multimodal_mismatch"].astype(int),
+}
 
-    print(f"Loading escalation table from: {in_path}")
-    df = pd.read_csv(in_path)
 
+def build_meta_dataframe_from_escalation(df: pd.DataFrame) -> pd.DataFrame:
     required_cols = [
         "sample_id",
         "true_label",
@@ -49,28 +45,38 @@ def build_step2_meta_dataset():
     if missing:
         raise ValueError(f"Missing columns in escalation table: {missing}")
 
-    df["ai_correct"] = (df["true_label"] == df["pred_ens"]).astype(int)
-    df["ai_error"] = 1 - df["ai_correct"]
+    df_local = df.copy()
+    df_local["ai_correct"] = (df_local["true_label"] == df_local["pred_ens"]).astype(int)
+    df_local["ai_error"] = 1 - df_local["ai_correct"]
 
-    df["risk_1_inv_conf"] = 1.0 - df["ens_max_prob"]
-    df["risk_2_margin"] = df["ens_margin"]
-    df["risk_3_entropy"] = df["ens_entropy"]
-    df["risk_4_disagreement"] = df["disagreement_score"]
-    df["risk_5_missing_fraction"] = df["missing_fraction"]
-    df["risk_6_critical_missing"] = df["critical_missing"].astype(int)
-    df["risk_7_multimodal_mismatch"] = df["multimodal_mismatch"].astype(int)
+    for feature_name, builder in RISK_FEATURE_MAP.items():
+        df_local[feature_name] = builder(df_local)
 
-    feature_cols = [
-        "risk_1_inv_conf",
-        "risk_2_margin",
-        "risk_3_entropy",
-        "risk_4_disagreement",
-        "risk_5_missing_fraction",
-        "risk_6_critical_missing",
-        "risk_7_multimodal_mismatch",
-    ]
+    feature_cols = list(RISK_FEATURE_MAP.keys())
+    return df_local[
+        ["sample_id", "true_label", "pred_ens", "ai_correct", "ai_error"] + feature_cols
+    ].copy()
 
-    df_out = df[["sample_id", "true_label", "pred_ens", "ai_correct", "ai_error"] + feature_cols].copy()
+
+def build_step2_meta_dataset():
+    tables_dir = TABLES_DIR
+    preferred_in_path = os.path.join(tables_dir, "escalation_table_oof.csv")
+    fallback_in_path = os.path.join(tables_dir, "escalation_table_testset.csv")
+    out_path = os.path.join(tables_dir, "step2_meta_dataset.csv")
+
+    if os.path.exists(preferred_in_path):
+        in_path = preferred_in_path
+    elif os.path.exists(fallback_in_path):
+        in_path = fallback_in_path
+    else:
+        raise FileNotFoundError(
+            "Could not find escalation input table. "
+            "Run `python .\\escalation\\run_inference_batch.py --source oof` first."
+        )
+
+    print(f"Loading escalation table from: {in_path}")
+    df = pd.read_csv(in_path)
+    df_out = build_meta_dataframe_from_escalation(df)
     os.makedirs(tables_dir, exist_ok=True)
     df_out.to_csv(out_path, index=False)
 
@@ -78,6 +84,7 @@ def build_step2_meta_dataset():
     print(f"   Samples: {len(df_out)}")
     print(f"   Target: ai_error (1=AI wrong, 0=AI correct)")
     print(f"Saved meta-dataset to: {out_path}")
+    return df_out, out_path
 
 
 if __name__ == "__main__":
