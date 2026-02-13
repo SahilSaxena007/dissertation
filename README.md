@@ -44,8 +44,14 @@ python .\escalation\run_step3_thresholds.py
    - Repeated stratified CV fold metrics: `../Outputs/cv_fold_metrics.csv`
    - CV summary metrics (mean/std): `../Outputs/overall_metrics.csv`
    - OOF probabilities/labels (`../artifacts/oof_*.npy`) and final model artifacts
+   - Calibration artifacts:
+     - `../artifacts/oof_ens_proba_calibrated_sigmoid.npy`
+     - `../artifacts/oof_ens_proba_calibrated_isotonic.npy`
+     - `../artifacts/oof_ens_proba_selected.npy` (auto-selected from raw/sigmoid/isotonic by OOF CV log-loss, tie-break by ECE)
+     - `../artifacts/oof_ens_proba_calibrated.npy` (compatibility alias to selected artifact)
+     - `../artifacts/calibration_summary.json`
 4. `run_evaluation.py` -> uses OOF artifacts by default for leak-free evaluation
-5. `run_inference_batch.py --source oof` -> `../reports/tables/escalation_table_oof.csv`
+5. `run_inference_batch.py --source oof` -> `../reports/tables/escalation_table_oof.csv` (uses selected ensemble probabilities for uncertainty signals when available)
 6. `step2_feature_builder.py` -> `../reports/tables/step2_meta_dataset.csv`
 7. `step2_train_meta_model.py` ->
    - CV out-of-sample risk scores in `../reports/tables/threshold_data.csv`

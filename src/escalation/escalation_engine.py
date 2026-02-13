@@ -36,12 +36,16 @@ def _evaluate_single_case(
     probs_cat: np.ndarray,
     probs_rf: np.ndarray,
     probs_nn: np.ndarray,
+    probs_ens_override: Optional[np.ndarray],
     config: EscalationConfig,
     class_names: List[str] = CLASS_NAMES,
     shap_by_model: Optional[Dict[str, np.ndarray]] = None,
 ) -> Dict[str, Any]:
     # Ensemble probabilities
-    probs_ens = (probs_cat + probs_rf + probs_nn) / 3.0
+    if probs_ens_override is None:
+        probs_ens = (probs_cat + probs_rf + probs_nn) / 3.0
+    else:
+        probs_ens = np.asarray(probs_ens_override, dtype=float)
 
     pred_cat = int(np.argmax(probs_cat))
     pred_rf = int(np.argmax(probs_rf))
@@ -140,6 +144,7 @@ def run_batch_escalation_from_probabilities(
     probs_cat: np.ndarray,
     probs_rf: np.ndarray,
     probs_nn: np.ndarray,
+    probs_ens_override: Optional[np.ndarray] = None,
     class_names: List[str] = CLASS_NAMES,
     config: EscalationConfig = ESCALATION_CONFIG,
     shap_values_by_model: Optional[Dict[str, np.ndarray]] = None,
@@ -166,6 +171,7 @@ def run_batch_escalation_from_probabilities(
             probs_cat=probs_cat[i],
             probs_rf=probs_rf[i],
             probs_nn=probs_nn[i],
+            probs_ens_override=probs_ens_override[i] if probs_ens_override is not None else None,
             config=config,
             class_names=class_names,
             shap_by_model=shap_row,
@@ -199,6 +205,7 @@ def run_single_escalation(
         probs_cat=probs_cat,
         probs_rf=probs_rf,
         probs_nn=probs_nn,
+        probs_ens_override=None,
         config=config,
         class_names=class_names,
     )

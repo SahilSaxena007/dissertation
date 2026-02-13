@@ -33,11 +33,22 @@ def evaluate_oof():
     y_prob_rf = np.load(os.path.join(artifacts_dir, "oof_rf_proba.npy"))
     y_prob_nn = np.load(os.path.join(artifacts_dir, "oof_nn_proba.npy"))
     y_prob_ens = np.load(os.path.join(artifacts_dir, "oof_ens_proba.npy"))
+    selected_path = os.path.join(artifacts_dir, "oof_ens_proba_selected.npy")
+    calibrated_path = os.path.join(artifacts_dir, "oof_ens_proba_calibrated.npy")
+    if os.path.exists(selected_path):
+        y_prob_ens_selected = np.load(selected_path)
+    elif os.path.exists(calibrated_path):
+        y_prob_ens_selected = np.load(calibrated_path)
+    else:
+        y_prob_ens_selected = None
 
     y_pred_cat = np.argmax(y_prob_cat, axis=1)
     y_pred_rf = np.argmax(y_prob_rf, axis=1)
     y_pred_nn = np.argmax(y_prob_nn, axis=1)
     y_pred_ens = np.argmax(y_prob_ens, axis=1)
+    y_pred_ens_selected = (
+        np.argmax(y_prob_ens_selected, axis=1) if y_prob_ens_selected is not None else None
+    )
 
     # Load deployment models for compatibility and optional SHAP on CatBoost
     cat_model = joblib.load(os.path.join(artifacts_dir, "best_model_catboost.pkl"))
@@ -74,6 +85,18 @@ def evaluate_oof():
         class_names=class_names,
         model_name="Ensemble",
     )
+
+    if y_prob_ens_selected is not None:
+        print("\n=== Evaluating Selected Soft Voting Ensemble (OOF) ===")
+        analyze_model_performance(
+            y_true=y_eval,
+            y_pred=y_pred_ens_selected,
+            y_prob=y_prob_ens_selected,
+            model=cat_model,
+            X_test=X_eval,
+            class_names=class_names,
+            model_name="EnsembleSelected",
+        )
 
     print("\n=== Evaluating CatBoost (OOF) ===")
     analyze_model_performance(

@@ -22,11 +22,12 @@ All scripts assume `src/` as CWD and use relative paths (`../data`, `../artifact
 3. `ModelsFinal.py` ->
    - repeated stratified CV artifacts: `Outputs/cv_fold_metrics.csv` and `Outputs/overall_metrics.csv` (mean/std across folds)
    - OOF artifacts for leak-free evaluation: `oof_cat_proba.npy`, `oof_rf_proba.npy`, `oof_nn_proba.npy`, `oof_ens_proba.npy`, `X_oof.npy`, `y_oof.npy`
+   - calibration artifacts: `oof_ens_proba_calibrated_sigmoid.npy`, `oof_ens_proba_calibrated_isotonic.npy`, `oof_ens_proba_selected.npy`, `oof_ens_proba_calibrated.npy` (compat alias), `calibration_summary.json`, calibrator pickles
    - deployment artifacts: models, imputer, selector, scaler
    - legacy split arrays for compatibility: `X_test.npy`, `y_test.npy`, etc.
 4. `run_evaluation.py` -> evaluates with OOF artifacts by default (falls back to legacy test split)
 5. Escalation pipeline:
-   - `run_inference_batch.py --source oof` -> `reports/tables/escalation_table_oof.csv`
+   - `run_inference_batch.py --source oof` -> `reports/tables/escalation_table_oof.csv` (uses selected ensemble probabilities when available)
    - `step2_feature_builder.py` -> `reports/tables/step2_meta_dataset.csv`
    - `step2_train_meta_model.py` -> CV out-of-sample meta risk scores in `threshold_data.csv`
      and stratified bootstrap evaluation in `step2_meta_bootstrap_metrics.csv`

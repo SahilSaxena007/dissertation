@@ -11,8 +11,10 @@ from scikeras.wrappers import KerasClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_selection import SelectKBest, mutual_info_classif
 from sklearn.impute import KNNImputer
-from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
-from sklearn.model_selection import RepeatedStratifiedKFold, train_test_split
+from sklearn.isotonic import IsotonicRegression
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, f1_score, log_loss, roc_auc_score
+from sklearn.model_selection import RepeatedStratifiedKFold, StratifiedKFold, train_test_split
 from sklearn.preprocessing import RobustScaler
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from tensorflow.keras.layers import BatchNormalization, Dense, Dropout, Input
@@ -35,6 +37,93 @@ CV_REPEATS = 2
 os.environ["PYTHONHASHSEED"] = str(SEED)
 np.random.seed(SEED)
 tf.random.set_seed(SEED)
+
+
+def multiclass_ece(y_true, y_prob, n_bins=15):
+    y_true = np.asarray(y_true, dtype=int)
+    y_prob = np.asarray(y_prob, dtype=float)
+    y_pred = np.argmax(y_prob, axis=1)
+    confidences = np.max(y_prob, axis=1)
+    correctness = (y_pred == y_true).astype(float)
+
+    ece = 0.0
+    bin_edges = np.linspace(0.0, 1.0, n_bins + 1)
+    for i in range(n_bins):
+        lower = bin_edges[i]
+        upper = bin_edges[i + 1]
+        if i == 0:
+            in_bin = (confidences >= lower) & (confidences <= upper)
+        else:
+            in_bin = (confidences > lower) & (confidences <= upper)
+        if np.any(in_bin):
+            bin_acc = correctness[in_bin].mean()
+            bin_conf = confidences[in_bin].mean()
+            ece += (np.sum(in_bin) / len(y_true)) * abs(bin_acc - bin_conf)
+    return float(ece)
+
+
+class MulticlassProbabilityCalibrator:
+    def __init__(self, method="sigmoid"):
+        if method not in {"sigmoid", "isotonic"}:
+            raise ValueError("method must be one of {'sigmoid', 'isotonic'}")
+        self.method = method
+        self.models = []
+        self.n_classes = None
+
+    def fit(self, probs, y):
+        probs = np.asarray(probs, dtype=float)
+        y = np.asarray(y, dtype=int)
+        self.n_classes = probs.shape[1]
+        self.models = []
+
+        for class_idx in range(self.n_classes):
+            targets = (y == class_idx).astype(int)
+            class_probs = probs[:, class_idx]
+
+            if self.method == "sigmoid":
+                clf = LogisticRegression(
+                    solver="lbfgs",
+                    max_iter=1000,
+                    random_state=SEED,
+                )
+                clf.fit(class_probs.reshape(-1, 1), targets)
+                self.models.append(clf)
+            else:
+                iso = IsotonicRegression(out_of_bounds="clip")
+                iso.fit(class_probs, targets)
+                self.models.append(iso)
+        return self
+
+    def predict_proba(self, probs):
+        probs = np.asarray(probs, dtype=float)
+        if self.n_classes is None or len(self.models) != self.n_classes:
+            raise RuntimeError("Calibrator must be fitted before predict_proba.")
+
+        calibrated = np.zeros_like(probs, dtype=float)
+        for class_idx, model in enumerate(self.models):
+            class_probs = probs[:, class_idx]
+            if self.method == "sigmoid":
+                calibrated[:, class_idx] = model.predict_proba(class_probs.reshape(-1, 1))[:, 1]
+            else:
+                calibrated[:, class_idx] = model.predict(class_probs)
+
+        calibrated = np.clip(calibrated, 1e-12, 1.0)
+        calibrated = calibrated / calibrated.sum(axis=1, keepdims=True)
+        return calibrated
+
+
+def generate_cv_calibrated_probs(raw_probs, y_true, method, n_splits=5):
+    raw_probs = np.asarray(raw_probs, dtype=float)
+    y_true = np.asarray(y_true, dtype=int)
+
+    cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=SEED)
+    calibrated = np.zeros_like(raw_probs, dtype=float)
+
+    for train_idx, val_idx in cv.split(raw_probs, y_true):
+        calibrator = MulticlassProbabilityCalibrator(method=method).fit(raw_probs[train_idx], y_true[train_idx])
+        calibrated[val_idx] = calibrator.predict_proba(raw_probs[val_idx])
+
+    return calibrated
 
 
 def create_model(input_dim=12, units_1=64, units_2=32, units_3=16, dropout_1=0.3, dropout_2=0.2, learning_rate=0.001):
@@ -215,6 +304,38 @@ oof_nn = oof_nn_sum / oof_counts[:, None]
 oof_selected_X = oof_selected_X_sum / oof_counts[:, None]
 oof_ens = (oof_cat + oof_rf + oof_nn) / 3.0
 
+# ---------------------------------------------------------------------
+# Probability calibration (Phase 1.1)
+# ---------------------------------------------------------------------
+print("Calibrating OOF ensemble probabilities (sigmoid + isotonic)...")
+oof_ens_sigmoid = generate_cv_calibrated_probs(oof_ens, y, method="sigmoid", n_splits=5)
+oof_ens_isotonic = generate_cv_calibrated_probs(oof_ens, y, method="isotonic", n_splits=5)
+
+raw_logloss = float(log_loss(y, oof_ens))
+sigmoid_logloss = float(log_loss(y, oof_ens_sigmoid))
+isotonic_logloss = float(log_loss(y, oof_ens_isotonic))
+raw_ece = multiclass_ece(y, oof_ens, n_bins=15)
+sigmoid_ece = multiclass_ece(y, oof_ens_sigmoid, n_bins=15)
+isotonic_ece = multiclass_ece(y, oof_ens_isotonic, n_bins=15)
+
+selection_candidates = {
+    "raw": {"proba": oof_ens, "logloss": raw_logloss, "ece": raw_ece},
+    "sigmoid": {"proba": oof_ens_sigmoid, "logloss": sigmoid_logloss, "ece": sigmoid_ece},
+    "isotonic": {"proba": oof_ens_isotonic, "logloss": isotonic_logloss, "ece": isotonic_ece},
+}
+best_calibration_method = min(
+    selection_candidates.keys(),
+    key=lambda name: (selection_candidates[name]["logloss"], selection_candidates[name]["ece"]),
+)
+oof_ens_selected = selection_candidates[best_calibration_method]["proba"]
+
+print(
+    "Calibration summary (OOF CV): "
+    f"raw logloss={raw_logloss:.5f}, sigmoid={sigmoid_logloss:.5f}, isotonic={isotonic_logloss:.5f}; "
+    f"raw ECE={raw_ece:.5f}, sigmoid={sigmoid_ece:.5f}, isotonic={isotonic_ece:.5f}; "
+    f"selected={best_calibration_method}"
+)
+
 cv_metrics_table = pd.DataFrame(cv_metric_rows)
 cv_metrics_table.to_csv("../Outputs/cv_fold_metrics.csv", index=False)
 
@@ -228,10 +349,44 @@ np.save("../artifacts/oof_cat_proba.npy", oof_cat)
 np.save("../artifacts/oof_rf_proba.npy", oof_rf)
 np.save("../artifacts/oof_nn_proba.npy", oof_nn)
 np.save("../artifacts/oof_ens_proba.npy", oof_ens)
+np.save("../artifacts/oof_ens_proba_calibrated_sigmoid.npy", oof_ens_sigmoid)
+np.save("../artifacts/oof_ens_proba_calibrated_isotonic.npy", oof_ens_isotonic)
+np.save("../artifacts/oof_ens_proba_calibrated.npy", oof_ens_selected)
+np.save("../artifacts/oof_ens_proba_selected.npy", oof_ens_selected)
 np.save("../artifacts/oof_pred_ens.npy", np.argmax(oof_ens, axis=1))
 np.save("../artifacts/y_oof.npy", y)
 np.save("../artifacts/X_oof.npy", oof_selected_X)
 np.save("../artifacts/oof_sample_ids.npy", oof_sample_ids)
+
+calibration_summary = {
+    "selected_method": best_calibration_method,
+    "selected_logloss": selection_candidates[best_calibration_method]["logloss"],
+    "selected_ece": selection_candidates[best_calibration_method]["ece"],
+    "logloss": {
+        "raw": raw_logloss,
+        "sigmoid": sigmoid_logloss,
+        "isotonic": isotonic_logloss,
+    },
+    "ece": {
+        "raw": raw_ece,
+        "sigmoid": sigmoid_ece,
+        "isotonic": isotonic_ece,
+    },
+}
+with open("../artifacts/calibration_summary.json", "w", encoding="utf-8") as f:
+    json.dump(calibration_summary, f, indent=2)
+
+sigmoid_calibrator = MulticlassProbabilityCalibrator(method="sigmoid").fit(oof_ens, y)
+isotonic_calibrator = MulticlassProbabilityCalibrator(method="isotonic").fit(oof_ens, y)
+joblib.dump(sigmoid_calibrator, "../artifacts/calibrator_sigmoid.pkl")
+joblib.dump(isotonic_calibrator, "../artifacts/calibrator_isotonic.pkl")
+if best_calibration_method == "sigmoid":
+    joblib.dump(sigmoid_calibrator, "../artifacts/calibrator_best.pkl")
+elif best_calibration_method == "isotonic":
+    joblib.dump(isotonic_calibrator, "../artifacts/calibrator_best.pkl")
+else:
+    # Raw selected: no probability transform beyond base ensemble.
+    joblib.dump(None, "../artifacts/calibrator_best.pkl")
 
 # ---------------------------------------------------------------------
 # Fit preprocessing and final models on full data for deployment artifacts
@@ -301,4 +456,4 @@ np.save("../artifacts/X_test.npy", X_test_legacy)
 np.save("../artifacts/y_train.npy", y_train_legacy)
 np.save("../artifacts/y_test.npy", y_test_legacy)
 
-print("Saved models, preprocessors, OOF artifacts, and legacy split artifacts.")
+print("Saved models, preprocessors, OOF artifacts, calibration artifacts, and legacy split artifacts.")

@@ -91,6 +91,7 @@ def test_compute_classification_metrics():
     assert 0 <= overall_metrics["macro_precision"] <= 1, "macro_precision should be in [0, 1]"
     assert 0 <= overall_metrics["macro_recall"] <= 1, "macro_recall should be in [0, 1]"
     assert 0 <= overall_metrics["macro_f1"] <= 1, "macro_f1 should be in [0, 1]"
+    assert 0 <= overall_metrics["ece"] <= 1, "ece should be in [0, 1]"
     print("  ✅ Overall metrics in valid ranges [0, 1]")
     
     # Check per-class metrics

@@ -16,6 +16,32 @@ from sklearn.metrics import (
 from sklearn.preprocessing import label_binarize
 
 
+def expected_calibration_error(y_true, y_prob, n_bins=15):
+    """
+    Multiclass top-label Expected Calibration Error (ECE).
+    """
+    y_true = np.asarray(y_true, dtype=int)
+    y_prob = np.asarray(y_prob, dtype=float)
+    y_pred = np.argmax(y_prob, axis=1)
+    confidences = np.max(y_prob, axis=1)
+    correctness = (y_pred == y_true).astype(float)
+
+    ece = 0.0
+    bin_edges = np.linspace(0.0, 1.0, n_bins + 1)
+    for i in range(n_bins):
+        lower = bin_edges[i]
+        upper = bin_edges[i + 1]
+        if i == 0:
+            in_bin = (confidences >= lower) & (confidences <= upper)
+        else:
+            in_bin = (confidences > lower) & (confidences <= upper)
+        if np.any(in_bin):
+            bin_acc = correctness[in_bin].mean()
+            bin_conf = confidences[in_bin].mean()
+            ece += (np.sum(in_bin) / len(y_true)) * abs(bin_acc - bin_conf)
+    return float(ece)
+
+
 def compute_classification_metrics(y_true, y_pred, y_prob, class_names):
     """
     Compute overall metrics: accuracy, precision, recall, F1, AUC, Brier score, log-loss.
@@ -76,6 +102,11 @@ def compute_classification_metrics(y_true, y_pred, y_prob, class_names):
         overall_metrics["logloss"] = log_loss(y_true, y_prob)
     except Exception:
         overall_metrics["logloss"] = np.nan
+
+    try:
+        overall_metrics["ece"] = expected_calibration_error(y_true, y_prob, n_bins=15)
+    except Exception:
+        overall_metrics["ece"] = np.nan
 
     # --- Per-class metrics table ---
     per_class_df = per_class_metrics_table(y_true, y_pred, y_prob, class_names)

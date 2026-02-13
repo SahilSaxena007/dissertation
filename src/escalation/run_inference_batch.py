@@ -27,6 +27,17 @@ def run_oof_mode(artifacts_dir: str):
     probs_cat = np.load(os.path.join(artifacts_dir, "oof_cat_proba.npy"))
     probs_rf = np.load(os.path.join(artifacts_dir, "oof_rf_proba.npy"))
     probs_nn = np.load(os.path.join(artifacts_dir, "oof_nn_proba.npy"))
+    probs_ens_selected_path = os.path.join(artifacts_dir, "oof_ens_proba_selected.npy")
+    probs_ens_calibrated_path = os.path.join(artifacts_dir, "oof_ens_proba_calibrated.npy")
+    probs_ens_selected = None
+    if os.path.exists(probs_ens_selected_path):
+        probs_ens_selected = np.load(probs_ens_selected_path)
+        print("   Using selected OOF ensemble probabilities for uncertainty signals.")
+    elif os.path.exists(probs_ens_calibrated_path):
+        probs_ens_selected = np.load(probs_ens_calibrated_path)
+        print("   Using calibrated OOF ensemble probabilities for uncertainty signals.")
+    else:
+        print("   Selected OOF ensemble probabilities not found; using raw ensemble average.")
 
     print(f"   X_oof shape: {X.shape}")
     print(f"   y_oof shape: {y_true.shape}")
@@ -37,6 +48,7 @@ def run_oof_mode(artifacts_dir: str):
         probs_cat=probs_cat,
         probs_rf=probs_rf,
         probs_nn=probs_nn,
+        probs_ens_override=probs_ens_selected,
         class_names=CLASS_NAMES,
         config=ESCALATION_CONFIG,
     )
