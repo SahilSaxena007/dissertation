@@ -4,7 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Instructions
 
-When starting a new session refer to the masterplan.md to get context or remind me to tell you: 'let's continue with the masterplan'
+When starting a new session refer to `MASTERPLAN.md` for context, or ask: `let's continue with the masterplan`.
+
+## Documentation Sync Rule
+Whenever pipeline logic, paths, execution commands, or workflow assumptions change, update all three files together in the same change:
+- `CLAUDE.md`
+- `AGENTS.md`
+- `README.md`
 
 ## Project Overview
 
@@ -38,19 +44,20 @@ The project follows a sequential multi-step pipeline. All scripts assume `src/` 
 All commands run from `src/`:
 
 ```bash
-# Activate venv
-src/.venv/Scripts/activate    # Windows
+# Activate venv (Windows)
+.venv/Scripts/activate
 
 # Install dependencies
 pip install -r requirements.txt
 
 # Full pipeline (sequential)
 python merge_files.py
+python EDA.py
 python Preprocess.py
 python ModelsFinal.py
 python run_evaluation.py
 
-# HITL escalation pipeline (from src/)
+# HITL escalation pipeline
 python .\escalation\run_inference_batch.py
 python .\escalation\step2_feature_builder.py
 python .\escalation\step2_train_meta_model.py
@@ -67,11 +74,11 @@ python tests/test_imports.py
 
 ## Important Conventions
 
-- **Working directory**: All `src/` scripts use relative paths assuming CWD is `src/`. The escalation scripts additionally assume CWD is `src/escalation/` for their internal imports (they use bare imports like `from escalation_config import ...`).
-- **Model unpickling**: `voting_ensemble.pkl` contains a SciKeras KerasClassifier. Loading it requires `model_stub.py:create_model` to be patched into `__main__` before `joblib.load()`. See `run_inference_batch.py` for the pattern.
-- **Three diagnostic classes**: Always `["SCD", "MCI", "AD"]` mapped to `[0, 1, 2]`. Defined in both `utils/constants.py` and `escalation/escalation_config.py`.
-- **12 selected features**: After SelectKBest, the model uses 12 features (see `artifacts/selected_features.json`). Input shape for the NN stub is `(12,)`.
-- **Ensemble**: Soft voting = simple mean of CatBoost + RF + NN predicted probabilities.
-- **Escalation levels**: Three tiers - "AI-Autonomous" (no flags), "AI-Assisted" (soft flags like disagreement/low confidence), "Clinician-Mandatory" (hard flags like critical missing data or multimodal mismatch).
-- **Artifacts**: Serialized models (`.pkl`, `.h5`), numpy arrays (`.npy`), and threshold config (`.json`) live in `artifacts/`. Pipeline outputs (CSVs, figures) go to `reports/` and `Outputs/`.
-- **No test framework**: Tests are standalone Python scripts using `assert` statements, not pytest.
+- **Working directory**: All `src/` scripts use relative paths assuming CWD is `src/`.
+- **Model unpickling**: `voting_ensemble.pkl` contains a SciKeras KerasClassifier. Loading it requires `model_stub.py:create_model` patched into `__main__` before `joblib.load()` (see `run_inference_batch.py`).
+- **Three diagnostic classes**: Always `['SCD', 'MCI', 'AD']` mapped to `[0, 1, 2]`.
+- **12 selected features**: After SelectKBest, model input shape for NN is `(12,)`.
+- **Ensemble**: Soft voting = mean of CatBoost + RF + NN probabilities.
+- **Escalation levels**: `AI-Autonomous`, `AI-Assisted`, `Clinician-Mandatory`.
+- **Artifacts and reports**: Models and arrays in `artifacts/`; CSVs/figures in `Outputs/` and `reports/`.
+- **Tests**: Standalone `assert` scripts, not an integrated pytest suite.
