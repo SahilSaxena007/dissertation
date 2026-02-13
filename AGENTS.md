@@ -42,7 +42,7 @@ Tests are assert-based scripts (`tests/test_*.py`) rather than a unified pytest 
 
 ## Pipeline Conventions
 - Scripts assume CWD=`src/` and use relative paths (`../data`, `../artifacts`, `../reports`).
-- Reported performance must use OOF/CV outputs, not same-split train/eval.
+- Reported performance must use repeated stratified OOF/CV outputs and include fold-distributed summary (mean/std), not same-split train/eval.
 - `run_evaluation.py` should consume OOF artifacts when available.
 - Keep class mapping fixed: `SCD=0`, `MCI=1`, `AD=2`.
 

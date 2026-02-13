@@ -12,7 +12,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_selection import SelectKBest, mutual_info_classif
 from sklearn.impute import KNNImputer
 from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
-from sklearn.model_selection import StratifiedKFold, train_test_split
+from sklearn.model_selection import RepeatedStratifiedKFold, train_test_split
 from sklearn.preprocessing import RobustScaler
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from tensorflow.keras.layers import BatchNormalization, Dense, Dropout, Input
@@ -30,6 +30,8 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
 
 SEED = 42
+CV_FOLDS = 5
+CV_REPEATS = 2
 os.environ["PYTHONHASHSEED"] = str(SEED)
 np.random.seed(SEED)
 tf.random.set_seed(SEED)
@@ -71,6 +73,24 @@ def summarize_metrics(name, y_true, y_prob):
     }
 
 
+def summarize_cv_metrics(cv_metrics_df):
+    summary = (
+        cv_metrics_df.groupby("Model")[["Accuracy", "MacroF1", "AUC"]]
+        .agg(["mean", "std"])
+        .reset_index()
+    )
+    summary.columns = [
+        "Model",
+        "Accuracy_Mean",
+        "Accuracy_Std",
+        "MacroF1_Mean",
+        "MacroF1_Std",
+        "AUC_Mean",
+        "AUC_Std",
+    ]
+    return summary
+
+
 # ---------------------------------------------------------------------
 # Load and prepare dataset
 # ---------------------------------------------------------------------
@@ -88,18 +108,26 @@ feature_names = X_df.columns.tolist()
 # ---------------------------------------------------------------------
 n_samples = X_all.shape[0]
 n_classes = len(np.unique(y))
-cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=SEED)
+cv = RepeatedStratifiedKFold(n_splits=CV_FOLDS, n_repeats=CV_REPEATS, random_state=SEED)
 
-oof_cat = np.zeros((n_samples, n_classes), dtype=float)
-oof_rf = np.zeros((n_samples, n_classes), dtype=float)
-oof_nn = np.zeros((n_samples, n_classes), dtype=float)
-oof_selected_X = np.zeros((n_samples, 12), dtype=float)
+oof_cat_sum = np.zeros((n_samples, n_classes), dtype=float)
+oof_rf_sum = np.zeros((n_samples, n_classes), dtype=float)
+oof_nn_sum = np.zeros((n_samples, n_classes), dtype=float)
+oof_selected_X_sum = np.zeros((n_samples, 12), dtype=float)
+oof_counts = np.zeros(n_samples, dtype=int)
 oof_sample_ids = np.arange(n_samples, dtype=int)
+cv_metric_rows = []
 
-print("Generating out-of-fold (OOF) predictions with StratifiedKFold (k=5)...")
+total_folds = CV_FOLDS * CV_REPEATS
+print(
+    f"Generating OOF predictions with RepeatedStratifiedKFold "
+    f"(k={CV_FOLDS}, repeats={CV_REPEATS}, total folds={total_folds})..."
+)
 
-for fold_id, (train_idx, val_idx) in enumerate(cv.split(X_all, y), start=1):
-    print(f"Fold {fold_id}/5")
+for split_idx, (train_idx, val_idx) in enumerate(cv.split(X_all, y), start=1):
+    repeat_id = (split_idx - 1) // CV_FOLDS + 1
+    fold_id = (split_idx - 1) % CV_FOLDS + 1
+    print(f"Repeat {repeat_id}/{CV_REPEATS}, Fold {fold_id}/{CV_FOLDS}")
 
     X_train_raw = X_all[train_idx]
     y_train = y[train_idx]
@@ -148,23 +176,52 @@ for fold_id, (train_idx, val_idx) in enumerate(cv.split(X_all, y), start=1):
     rf_model_fold.fit(X_train_scaled, y_train)
     nn_model_fold.fit(X_train_scaled, y_train)
 
-    oof_cat[val_idx] = cat_model_fold.predict_proba(X_val_scaled)
-    oof_rf[val_idx] = rf_model_fold.predict_proba(X_val_scaled)
-    oof_nn[val_idx] = nn_model_fold.predict_proba(X_val_scaled)
-    oof_selected_X[val_idx] = X_val_scaled
+    y_prob_cat_fold = cat_model_fold.predict_proba(X_val_scaled)
+    y_prob_rf_fold = rf_model_fold.predict_proba(X_val_scaled)
+    y_prob_nn_fold = nn_model_fold.predict_proba(X_val_scaled)
+    y_prob_ens_fold = (y_prob_cat_fold + y_prob_rf_fold + y_prob_nn_fold) / 3.0
 
+    oof_cat_sum[val_idx] += y_prob_cat_fold
+    oof_rf_sum[val_idx] += y_prob_rf_fold
+    oof_nn_sum[val_idx] += y_prob_nn_fold
+    oof_selected_X_sum[val_idx] += X_val_scaled
+    oof_counts[val_idx] += 1
+
+    y_val = y[val_idx]
+    for model_name, y_prob_fold in [
+        ("CatBoost_OOF", y_prob_cat_fold),
+        ("RandomForest_OOF", y_prob_rf_fold),
+        ("NeuralNetwork_OOF", y_prob_nn_fold),
+        ("VotingEnsemble_OOF", y_prob_ens_fold),
+    ]:
+        fold_metrics = summarize_metrics(model_name, y_val, y_prob_fold)
+        cv_metric_rows.append(
+            {
+                "Repeat": repeat_id,
+                "Fold": fold_id,
+                "Model": fold_metrics["Model"],
+                "Accuracy": fold_metrics["Accuracy"],
+                "MacroF1": fold_metrics["MacroF1"],
+                "AUC": fold_metrics["AUC"],
+            }
+        )
+
+if np.any(oof_counts == 0):
+    raise RuntimeError("Each sample must appear in at least one validation fold.")
+
+oof_cat = oof_cat_sum / oof_counts[:, None]
+oof_rf = oof_rf_sum / oof_counts[:, None]
+oof_nn = oof_nn_sum / oof_counts[:, None]
+oof_selected_X = oof_selected_X_sum / oof_counts[:, None]
 oof_ens = (oof_cat + oof_rf + oof_nn) / 3.0
 
-metrics_table = pd.DataFrame(
-    [
-        summarize_metrics("CatBoost_OOF", y, oof_cat),
-        summarize_metrics("RandomForest_OOF", y, oof_rf),
-        summarize_metrics("NeuralNetwork_OOF", y, oof_nn),
-        summarize_metrics("VotingEnsemble_OOF", y, oof_ens),
-    ]
-)
+cv_metrics_table = pd.DataFrame(cv_metric_rows)
+cv_metrics_table.to_csv("../Outputs/cv_fold_metrics.csv", index=False)
+
+metrics_table = summarize_cv_metrics(cv_metrics_table)
 metrics_table.to_csv("../Outputs/overall_metrics.csv", index=False)
-print("Saved leak-free OOF metrics to ../Outputs/overall_metrics.csv")
+print("Saved fold metrics to ../Outputs/cv_fold_metrics.csv")
+print("Saved CV mean +/- std metrics to ../Outputs/overall_metrics.csv")
 
 # Save OOF artifacts for evaluation and escalation
 np.save("../artifacts/oof_cat_proba.npy", oof_cat)

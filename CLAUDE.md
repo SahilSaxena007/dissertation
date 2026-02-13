@@ -20,6 +20,7 @@ All scripts assume `src/` as CWD and use relative paths (`../data`, `../artifact
 1. `merge_files.py` -> `data/merged_data.csv`
 2. `Preprocess.py` -> `data/preprocessed_data.csv`
 3. `ModelsFinal.py` ->
+   - repeated stratified CV artifacts: `Outputs/cv_fold_metrics.csv` and `Outputs/overall_metrics.csv` (mean/std across folds)
    - OOF artifacts for leak-free evaluation: `oof_cat_proba.npy`, `oof_rf_proba.npy`, `oof_nn_proba.npy`, `oof_ens_proba.npy`, `X_oof.npy`, `y_oof.npy`
    - deployment artifacts: models, imputer, selector, scaler
    - legacy split arrays for compatibility: `X_test.npy`, `y_test.npy`, etc.

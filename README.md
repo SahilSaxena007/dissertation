@@ -40,7 +40,10 @@ python .\escalation\run_step3_thresholds.py
 ### Step outputs
 1. `merge_files.py` -> `../data/merged_data.csv`
 2. `Preprocess.py` -> `../data/preprocessed_data.csv`
-3. `ModelsFinal.py` -> OOF probabilities/labels (`../artifacts/oof_*.npy`) and final model artifacts
+3. `ModelsFinal.py` ->
+   - Repeated stratified CV fold metrics: `../Outputs/cv_fold_metrics.csv`
+   - CV summary metrics (mean/std): `../Outputs/overall_metrics.csv`
+   - OOF probabilities/labels (`../artifacts/oof_*.npy`) and final model artifacts
 4. `run_evaluation.py` -> uses OOF artifacts by default for leak-free evaluation
 5. `run_inference_batch.py --source oof` -> `../reports/tables/escalation_table_oof.csv`
 6. `step2_feature_builder.py` -> `../reports/tables/step2_meta_dataset.csv`
