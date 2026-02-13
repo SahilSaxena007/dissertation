@@ -34,6 +34,7 @@ warnings.filterwarnings("ignore", category=UserWarning)
 SEED = 42
 CV_FOLDS = 5
 CV_REPEATS = 2
+HOLDOUT_SIZE = 0.20
 os.environ["PYTHONHASHSEED"] = str(SEED)
 np.random.seed(SEED)
 tf.random.set_seed(SEED)
@@ -186,17 +187,35 @@ def summarize_cv_metrics(cv_metrics_df):
 data = pd.read_csv("../data/preprocessed_data.csv")
 data = data.dropna(subset=["DX"]).copy()
 
-y = data["DX"].astype(int).to_numpy()
+y_all = data["DX"].astype(int).to_numpy()
 X_df = data.drop(columns=["DX"])
 X_df = X_df.select_dtypes(include=["int64", "float64", "int32", "float32"]).copy()
 X_all = X_df.to_numpy(dtype=float)
 feature_names = X_df.columns.tolist()
 
+all_indices = np.arange(X_all.shape[0], dtype=int)
+train_indices, holdout_indices = train_test_split(
+    all_indices,
+    test_size=HOLDOUT_SIZE,
+    random_state=SEED,
+    stratify=y_all,
+)
+
+X_train_all = X_all[train_indices]
+y_train_all = y_all[train_indices]
+X_holdout_all = X_all[holdout_indices]
+y_holdout_all = y_all[holdout_indices]
+
+print(
+    "Locked holdout split created: "
+    f"train={X_train_all.shape[0]} samples, holdout={X_holdout_all.shape[0]} samples"
+)
+
 # ---------------------------------------------------------------------
 # OOF generation for leak-free evaluation
 # ---------------------------------------------------------------------
-n_samples = X_all.shape[0]
-n_classes = len(np.unique(y))
+n_samples = X_train_all.shape[0]
+n_classes = len(np.unique(y_train_all))
 cv = RepeatedStratifiedKFold(n_splits=CV_FOLDS, n_repeats=CV_REPEATS, random_state=SEED)
 
 oof_cat_sum = np.zeros((n_samples, n_classes), dtype=float)
@@ -204,7 +223,7 @@ oof_rf_sum = np.zeros((n_samples, n_classes), dtype=float)
 oof_nn_sum = np.zeros((n_samples, n_classes), dtype=float)
 oof_selected_X_sum = np.zeros((n_samples, 12), dtype=float)
 oof_counts = np.zeros(n_samples, dtype=int)
-oof_sample_ids = np.arange(n_samples, dtype=int)
+oof_sample_ids = train_indices.copy()
 cv_metric_rows = []
 
 total_folds = CV_FOLDS * CV_REPEATS
@@ -213,14 +232,14 @@ print(
     f"(k={CV_FOLDS}, repeats={CV_REPEATS}, total folds={total_folds})..."
 )
 
-for split_idx, (train_idx, val_idx) in enumerate(cv.split(X_all, y), start=1):
+for split_idx, (train_idx, val_idx) in enumerate(cv.split(X_train_all, y_train_all), start=1):
     repeat_id = (split_idx - 1) // CV_FOLDS + 1
     fold_id = (split_idx - 1) % CV_FOLDS + 1
     print(f"Repeat {repeat_id}/{CV_REPEATS}, Fold {fold_id}/{CV_FOLDS}")
 
-    X_train_raw = X_all[train_idx]
-    y_train = y[train_idx]
-    X_val_raw = X_all[val_idx]
+    X_train_raw = X_train_all[train_idx]
+    y_train = y_train_all[train_idx]
+    X_val_raw = X_train_all[val_idx]
 
     imputer_fold = KNNImputer(n_neighbors=9, weights="distance")
     X_train_imp = imputer_fold.fit_transform(X_train_raw)
@@ -276,7 +295,7 @@ for split_idx, (train_idx, val_idx) in enumerate(cv.split(X_all, y), start=1):
     oof_selected_X_sum[val_idx] += X_val_scaled
     oof_counts[val_idx] += 1
 
-    y_val = y[val_idx]
+    y_val = y_train_all[val_idx]
     for model_name, y_prob_fold in [
         ("CatBoost_OOF", y_prob_cat_fold),
         ("RandomForest_OOF", y_prob_rf_fold),
@@ -308,15 +327,15 @@ oof_ens = (oof_cat + oof_rf + oof_nn) / 3.0
 # Probability calibration (Phase 1.1)
 # ---------------------------------------------------------------------
 print("Calibrating OOF ensemble probabilities (sigmoid + isotonic)...")
-oof_ens_sigmoid = generate_cv_calibrated_probs(oof_ens, y, method="sigmoid", n_splits=5)
-oof_ens_isotonic = generate_cv_calibrated_probs(oof_ens, y, method="isotonic", n_splits=5)
+oof_ens_sigmoid = generate_cv_calibrated_probs(oof_ens, y_train_all, method="sigmoid", n_splits=5)
+oof_ens_isotonic = generate_cv_calibrated_probs(oof_ens, y_train_all, method="isotonic", n_splits=5)
 
-raw_logloss = float(log_loss(y, oof_ens))
-sigmoid_logloss = float(log_loss(y, oof_ens_sigmoid))
-isotonic_logloss = float(log_loss(y, oof_ens_isotonic))
-raw_ece = multiclass_ece(y, oof_ens, n_bins=15)
-sigmoid_ece = multiclass_ece(y, oof_ens_sigmoid, n_bins=15)
-isotonic_ece = multiclass_ece(y, oof_ens_isotonic, n_bins=15)
+raw_logloss = float(log_loss(y_train_all, oof_ens))
+sigmoid_logloss = float(log_loss(y_train_all, oof_ens_sigmoid))
+isotonic_logloss = float(log_loss(y_train_all, oof_ens_isotonic))
+raw_ece = multiclass_ece(y_train_all, oof_ens, n_bins=15)
+sigmoid_ece = multiclass_ece(y_train_all, oof_ens_sigmoid, n_bins=15)
+isotonic_ece = multiclass_ece(y_train_all, oof_ens_isotonic, n_bins=15)
 
 selection_candidates = {
     "raw": {"proba": oof_ens, "logloss": raw_logloss, "ece": raw_ece},
@@ -354,7 +373,7 @@ np.save("../artifacts/oof_ens_proba_calibrated_isotonic.npy", oof_ens_isotonic)
 np.save("../artifacts/oof_ens_proba_calibrated.npy", oof_ens_selected)
 np.save("../artifacts/oof_ens_proba_selected.npy", oof_ens_selected)
 np.save("../artifacts/oof_pred_ens.npy", np.argmax(oof_ens, axis=1))
-np.save("../artifacts/y_oof.npy", y)
+np.save("../artifacts/y_oof.npy", y_train_all)
 np.save("../artifacts/X_oof.npy", oof_selected_X)
 np.save("../artifacts/oof_sample_ids.npy", oof_sample_ids)
 
@@ -376,8 +395,8 @@ calibration_summary = {
 with open("../artifacts/calibration_summary.json", "w", encoding="utf-8") as f:
     json.dump(calibration_summary, f, indent=2)
 
-sigmoid_calibrator = MulticlassProbabilityCalibrator(method="sigmoid").fit(oof_ens, y)
-isotonic_calibrator = MulticlassProbabilityCalibrator(method="isotonic").fit(oof_ens, y)
+sigmoid_calibrator = MulticlassProbabilityCalibrator(method="sigmoid").fit(oof_ens, y_train_all)
+isotonic_calibrator = MulticlassProbabilityCalibrator(method="isotonic").fit(oof_ens, y_train_all)
 joblib.dump(sigmoid_calibrator, "../artifacts/calibrator_sigmoid.pkl")
 joblib.dump(isotonic_calibrator, "../artifacts/calibrator_isotonic.pkl")
 if best_calibration_method == "sigmoid":
@@ -389,17 +408,20 @@ else:
     joblib.dump(None, "../artifacts/calibrator_best.pkl")
 
 # ---------------------------------------------------------------------
-# Fit preprocessing and final models on full data for deployment artifacts
+# Fit preprocessing and final models on training split only
 # ---------------------------------------------------------------------
 imputer = KNNImputer(n_neighbors=9, weights="distance")
-X_imputed = imputer.fit_transform(X_all)
+X_train_imputed = imputer.fit_transform(X_train_all)
+X_holdout_imputed = imputer.transform(X_holdout_all)
 
 selector = SelectKBest(mutual_info_classif, k=12)
-X_selected = selector.fit_transform(X_imputed, y)
+X_train_selected = selector.fit_transform(X_train_imputed, y_train_all)
+X_holdout_selected = selector.transform(X_holdout_imputed)
 selected_features = X_df.columns[selector.get_support()].tolist()
 
 scaler = RobustScaler()
-X_scaled = scaler.fit_transform(X_selected)
+X_train_scaled = scaler.fit_transform(X_train_selected)
+X_holdout_scaled = scaler.transform(X_holdout_selected)
 
 joblib.dump(imputer, "../artifacts/imputer.pkl")
 joblib.dump(selector, "../artifacts/select_k_best.pkl")
@@ -423,7 +445,7 @@ rf_model = RandomForestClassifier(
 )
 nn_model = KerasClassifier(
     model=create_model,
-    model__input_dim=X_scaled.shape[1],
+    model__input_dim=X_train_scaled.shape[1],
     random_state=SEED,
     epochs=120,
     batch_size=32,
@@ -434,9 +456,9 @@ nn_model = KerasClassifier(
     ],
 )
 
-cat_model.fit(X_scaled, y)
-rf_model.fit(X_scaled, y)
-nn_model.fit(X_scaled, y)
+cat_model.fit(X_train_scaled, y_train_all)
+rf_model.fit(X_train_scaled, y_train_all)
+nn_model.fit(X_train_scaled, y_train_all)
 
 joblib.dump(cat_model, "../artifacts/best_model_catboost.pkl")
 joblib.dump(rf_model, "../artifacts/random_forest.pkl")
@@ -445,15 +467,13 @@ nn_model.model_.save("../artifacts/neural_network.h5")
 joblib.dump({"catboost": cat_model, "rf": rf_model, "nn": nn_model}, "../artifacts/voting_ensemble.pkl")
 
 # ---------------------------------------------------------------------
-# Legacy compatibility split (not for reported performance)
+# Save strict train/holdout arrays for unseen end-to-end demo
 # ---------------------------------------------------------------------
-X_train_legacy, X_test_legacy, y_train_legacy, y_test_legacy = train_test_split(
-    X_scaled, y, test_size=0.2, random_state=SEED, stratify=y
-)
+np.save("../artifacts/X_train.npy", X_train_scaled)
+np.save("../artifacts/X_test.npy", X_holdout_scaled)
+np.save("../artifacts/y_train.npy", y_train_all)
+np.save("../artifacts/y_test.npy", y_holdout_all)
+np.save("../artifacts/train_indices.npy", train_indices)
+np.save("../artifacts/holdout_indices.npy", holdout_indices)
 
-np.save("../artifacts/X_train.npy", X_train_legacy)
-np.save("../artifacts/X_test.npy", X_test_legacy)
-np.save("../artifacts/y_train.npy", y_train_legacy)
-np.save("../artifacts/y_test.npy", y_test_legacy)
-
-print("Saved models, preprocessors, OOF artifacts, calibration artifacts, and legacy split artifacts.")
+print("Saved models, preprocessors, OOF artifacts, calibration artifacts, and strict holdout split artifacts.")

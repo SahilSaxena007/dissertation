@@ -7,7 +7,7 @@ Usage (from src/):
 
 Requires:
     - voting_ensemble.pkl
-    - X_test.npy, y_test.npy
+    - X_test.npy, y_test.npy (strict locked holdout from ModelsFinal.py)
     - step2_meta_model.pkl
     - step3_best_threshold.json
 """

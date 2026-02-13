@@ -21,11 +21,11 @@ All scripts assume `src/` as CWD and use relative paths (`../data`, `../artifact
 2. `Preprocess.py` -> `data/preprocessed_data.csv`
 3. `ModelsFinal.py` ->
    - repeated stratified CV artifacts: `Outputs/cv_fold_metrics.csv` and `Outputs/overall_metrics.csv` (mean/std across folds)
-   - OOF artifacts for leak-free evaluation: `oof_cat_proba.npy`, `oof_rf_proba.npy`, `oof_nn_proba.npy`, `oof_ens_proba.npy`, `X_oof.npy`, `y_oof.npy`
+   - OOF artifacts for leak-free evaluation on train split: `oof_cat_proba.npy`, `oof_rf_proba.npy`, `oof_nn_proba.npy`, `oof_ens_proba.npy`, `X_oof.npy`, `y_oof.npy`
    - calibration artifacts: `oof_ens_proba_calibrated_sigmoid.npy`, `oof_ens_proba_calibrated_isotonic.npy`, `oof_ens_proba_selected.npy`, `oof_ens_proba_calibrated.npy` (compat alias), `calibration_summary.json`, calibrator pickles
    - deployment artifacts: models, imputer, selector, scaler
-   - legacy split arrays for compatibility: `X_test.npy`, `y_test.npy`, etc.
-4. `run_evaluation.py` -> evaluates with OOF artifacts by default (falls back to legacy test split)
+   - strict holdout split arrays: `X_train.npy`, `y_train.npy`, `X_test.npy`, `y_test.npy`, `train_indices.npy`, `holdout_indices.npy`
+4. `run_evaluation.py` -> evaluates with OOF artifacts by default (falls back to strict holdout split)
 5. Escalation pipeline:
    - `run_inference_batch.py --source oof` -> `reports/tables/escalation_table_oof.csv` (uses selected ensemble probabilities when available)
    - `step2_feature_builder.py` -> `reports/tables/step2_meta_dataset.csv`
@@ -56,6 +56,6 @@ python .\escalation\run_step3_thresholds.py
 ## Important Conventions
 - Reported model quality should come from OOF/CV predictions.
 - Class mapping remains fixed: `SCD=0`, `MCI=1`, `AD=2`.
-- Ensemble = mean of CatBoost + RF + NN probabilities.
-- For compatibility, `run_inference_batch.py --source testset` supports the legacy holdout path.
+- Ensemble = mean of CatBoost + RF + NN probabilities (with selected calibration artifact for escalation uncertainty signals).
+- `run_inference_batch.py --source testset` is the unseen holdout demo path (untouched 20% split).
 - Tests are standalone `assert` scripts in `tests/`.

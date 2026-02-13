@@ -43,8 +43,10 @@ Tests are assert-based scripts (`tests/test_*.py`) rather than a unified pytest 
 ## Pipeline Conventions
 - Scripts assume CWD=`src/` and use relative paths (`../data`, `../artifacts`, `../reports`).
 - Reported performance must use repeated stratified OOF/CV outputs and include fold-distributed summary (mean/std), not same-split train/eval.
+- `ModelsFinal.py` must create a strict locked holdout split (`X_test.npy`, `y_test.npy`) and train fitting must remain train-split only.
 - `run_evaluation.py` should consume OOF artifacts when available.
 - `ModelsFinal.py` writes OOF ensemble calibration artifacts (`oof_ens_proba_calibrated_*.npy`, `oof_ens_proba_selected.npy`, `oof_ens_proba_calibrated.npy`, `calibration_summary.json`) and downstream OOF escalation should prefer selected ensemble probabilities.
+- `run_inference_batch.py --source testset` is the unseen holdout demo path.
 - Step 3 thresholding should use human-accuracy sensitivity analysis (default range `0.85-0.95`) rather than a single fixed clinician-accuracy value.
 - Step 2 meta-model evaluation should include stratified bootstrap uncertainty estimates (`step2_meta_bootstrap_metrics.csv`).
 - Keep class mapping fixed: `SCD=0`, `MCI=1`, `AD=2`.

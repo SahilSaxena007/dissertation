@@ -43,7 +43,12 @@ python .\escalation\run_step3_thresholds.py
 3. `ModelsFinal.py` ->
    - Repeated stratified CV fold metrics: `../Outputs/cv_fold_metrics.csv`
    - CV summary metrics (mean/std): `../Outputs/overall_metrics.csv`
-   - OOF probabilities/labels (`../artifacts/oof_*.npy`) and final model artifacts
+   - OOF probabilities/labels (`../artifacts/oof_*.npy`) generated on the train split only
+   - Strict locked holdout artifacts for unseen demo:
+     - `../artifacts/X_test.npy`, `../artifacts/y_test.npy` (20% untouched holdout)
+     - `../artifacts/X_train.npy`, `../artifacts/y_train.npy`
+     - `../artifacts/train_indices.npy`, `../artifacts/holdout_indices.npy`
+   - Final model artifacts fit on train split only (not full dataset)
    - Calibration artifacts:
      - `../artifacts/oof_ens_proba_calibrated_sigmoid.npy`
      - `../artifacts/oof_ens_proba_calibrated_isotonic.npy`
@@ -62,8 +67,8 @@ python .\escalation\run_step3_thresholds.py
    - `../reports/tables/threshold_sensitivity_summary.csv` (best threshold per human-accuracy scenario)
    - `../artifacts/step3_best_threshold.json` (robust threshold chosen from sensitivity-aware expected accuracy)
 
-## Optional Legacy Mode
-`python .\escalation\run_inference_batch.py --source testset` runs old holdout testset escalation for compatibility only.
+## Unseen Holdout Mode
+`python .\escalation\run_inference_batch.py --source testset` runs escalation on the strict untouched holdout set (`X_test.npy`, `y_test.npy`) for unseen-data demo.
 
 ## Tests
 Run from repository root:
