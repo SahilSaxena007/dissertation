@@ -38,6 +38,7 @@ def _evaluate_single_case(
     probs_nn: np.ndarray,
     config: EscalationConfig,
     class_names: List[str] = CLASS_NAMES,
+    shap_by_model: Optional[Dict[str, np.ndarray]] = None,
 ) -> Dict[str, Any]:
     # Ensemble probabilities
     probs_ens = (probs_cat + probs_rf + probs_nn) / 3.0
@@ -51,7 +52,7 @@ def _evaluate_single_case(
     disagreement = compute_model_disagreement({"catboost": pred_cat, "rf": pred_rf, "nn": pred_nn})
     missing = compute_missingness_flags(x_row, config)
     multimodal = compute_multimodal_mismatch(x_row, config)
-    shap = compute_shap_instability()
+    shap = compute_shap_instability(shap_by_model=shap_by_model)
 
     reasons: List[str] = []
 
@@ -109,6 +110,7 @@ def run_batch_escalation(
     models: Dict[str, Any],
     class_names: List[str] = CLASS_NAMES,
     config: EscalationConfig = ESCALATION_CONFIG,
+    shap_values_by_model: Optional[Dict[str, np.ndarray]] = None,
 ) -> pd.DataFrame:
     n_samples = X.shape[0]
 
@@ -128,6 +130,7 @@ def run_batch_escalation(
         probs_nn=probs_nn,
         class_names=class_names,
         config=config,
+        shap_values_by_model=shap_values_by_model,
     )
 
 
@@ -139,6 +142,7 @@ def run_batch_escalation_from_probabilities(
     probs_nn: np.ndarray,
     class_names: List[str] = CLASS_NAMES,
     config: EscalationConfig = ESCALATION_CONFIG,
+    shap_values_by_model: Optional[Dict[str, np.ndarray]] = None,
 ) -> pd.DataFrame:
     n_samples = X.shape[0]
     if y_true is None:
@@ -148,6 +152,14 @@ def run_batch_escalation_from_probabilities(
 
     rows: List[Dict[str, Any]] = []
     for i in range(n_samples):
+        shap_row = None
+        if shap_values_by_model:
+            shap_row = {}
+            for model_name, shap_values in shap_values_by_model.items():
+                arr = np.asarray(shap_values)
+                if arr.ndim >= 2 and arr.shape[0] > i:
+                    shap_row[model_name] = arr[i]
+
         row = _evaluate_single_case(
             x_row=X[i],
             y_true=y_arr[i] if y_true is not None else None,
@@ -156,6 +168,7 @@ def run_batch_escalation_from_probabilities(
             probs_nn=probs_nn[i],
             config=config,
             class_names=class_names,
+            shap_by_model=shap_row,
         )
         row["sample_id"] = int(i)
         rows.append(row)

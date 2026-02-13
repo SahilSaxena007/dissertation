@@ -44,6 +44,7 @@ Tests are assert-based scripts (`tests/test_*.py`) rather than a unified pytest 
 - Scripts assume CWD=`src/` and use relative paths (`../data`, `../artifacts`, `../reports`).
 - Reported performance must use repeated stratified OOF/CV outputs and include fold-distributed summary (mean/std), not same-split train/eval.
 - `run_evaluation.py` should consume OOF artifacts when available.
+- Step 3 thresholding should use human-accuracy sensitivity analysis (default range `0.85-0.95`) rather than a single fixed clinician-accuracy value.
 - Keep class mapping fixed: `SCD=0`, `MCI=1`, `AD=2`.
 
 ## Commit & Pull Request Guidelines

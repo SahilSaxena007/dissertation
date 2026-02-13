@@ -48,7 +48,11 @@ python .\escalation\run_step3_thresholds.py
 5. `run_inference_batch.py --source oof` -> `../reports/tables/escalation_table_oof.csv`
 6. `step2_feature_builder.py` -> `../reports/tables/step2_meta_dataset.csv`
 7. `step2_train_meta_model.py` -> CV out-of-sample risk scores in `../reports/tables/threshold_data.csv`
-8. `run_step3_thresholds.py` -> `../reports/tables/threshold_analysis.csv` and `../artifacts/step3_best_threshold.json`
+8. `run_step3_thresholds.py` ->
+   - `../reports/tables/threshold_analysis.csv` (expected policy metrics under human-accuracy sensitivity)
+   - `../reports/tables/threshold_analysis_by_human_accuracy.csv` (full per-threshold, per-scenario sweep)
+   - `../reports/tables/threshold_sensitivity_summary.csv` (best threshold per human-accuracy scenario)
+   - `../artifacts/step3_best_threshold.json` (robust threshold chosen from sensitivity-aware expected accuracy)
 
 ## Optional Legacy Mode
 `python .\escalation\run_inference_batch.py --source testset` runs old holdout testset escalation for compatibility only.

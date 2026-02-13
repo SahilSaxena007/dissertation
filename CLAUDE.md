@@ -29,7 +29,9 @@ All scripts assume `src/` as CWD and use relative paths (`../data`, `../artifact
    - `run_inference_batch.py --source oof` -> `reports/tables/escalation_table_oof.csv`
    - `step2_feature_builder.py` -> `reports/tables/step2_meta_dataset.csv`
    - `step2_train_meta_model.py` -> CV out-of-sample meta risk scores in `threshold_data.csv`
-   - `run_step3_thresholds.py` -> threshold optimization outputs
+   - `run_step3_thresholds.py` -> sensitivity-aware threshold optimization outputs:
+     `threshold_analysis.csv`, `threshold_analysis_by_human_accuracy.csv`,
+     `threshold_sensitivity_summary.csv`, and `artifacts/step3_best_threshold.json`
 
 ## Commands
 Run from `src/`:
