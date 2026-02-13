@@ -20,7 +20,7 @@ import joblib
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import roc_auc_score, classification_report
+from sklearn.metrics import roc_auc_score, classification_report, accuracy_score
 from sklearn.model_selection import StratifiedKFold, cross_val_predict
 
 
@@ -33,6 +33,70 @@ FEATURE_COLS = [
     "risk_6_critical_missing",
     "risk_7_multimodal_mismatch",
 ]
+
+
+def _stratified_bootstrap_indices(y: np.ndarray, rng: np.random.Generator) -> np.ndarray:
+    """
+    Sample indices with replacement while preserving class counts.
+    """
+    y = np.asarray(y)
+    sampled = []
+    for cls in np.unique(y):
+        cls_idx = np.where(y == cls)[0]
+        sampled_cls = rng.choice(cls_idx, size=len(cls_idx), replace=True)
+        sampled.append(sampled_cls)
+
+    idx = np.concatenate(sampled)
+    rng.shuffle(idx)
+    return idx
+
+
+def compute_bootstrap_meta_metrics(
+    y_true: np.ndarray,
+    y_prob: np.ndarray,
+    n_bootstraps: int = 1000,
+    seed: int = 42,
+) -> pd.DataFrame:
+    """
+    Stratified bootstrap CIs for meta-model OOF evaluation.
+    """
+    y_true = np.asarray(y_true).astype(int)
+    y_prob = np.asarray(y_prob).astype(float)
+    y_pred = (y_prob >= 0.5).astype(int)
+
+    rng = np.random.default_rng(seed)
+    auc_vals = []
+    acc_vals = []
+
+    for _ in range(n_bootstraps):
+        b_idx = _stratified_bootstrap_indices(y_true, rng)
+        y_b = y_true[b_idx]
+        p_b = y_prob[b_idx]
+        pred_b = y_pred[b_idx]
+
+        if len(np.unique(y_b)) < 2:
+            continue
+
+        auc_vals.append(roc_auc_score(y_b, p_b))
+        acc_vals.append(accuracy_score(y_b, pred_b))
+
+    def summarize(metric_name: str, vals: list[float]) -> dict:
+        arr = np.asarray(vals, dtype=float)
+        return {
+            "metric": metric_name,
+            "mean": float(np.mean(arr)),
+            "std": float(np.std(arr, ddof=1)) if arr.size > 1 else 0.0,
+            "ci_lower_95": float(np.percentile(arr, 2.5)),
+            "ci_upper_95": float(np.percentile(arr, 97.5)),
+            "n_bootstraps_used": int(arr.size),
+        }
+
+    return pd.DataFrame(
+        [
+            summarize("auc", auc_vals),
+            summarize("accuracy_at_0.5", acc_vals),
+        ]
+    )
 
 
 def train_meta_model():
@@ -69,6 +133,12 @@ def train_meta_model():
     print(f"CV AUC (ai_error vs predicted risk): {auc:.3f}")
     print("Classification report on CV out-of-sample predictions:")
     print(classification_report(y, y_pred_oof, digits=3))
+
+    # Stratified bootstrap over OOF predictions for robust small-sample estimates
+    df_boot = compute_bootstrap_meta_metrics(y_true=y, y_prob=y_prob_oof, n_bootstraps=1000, seed=42)
+    boot_path = os.path.join(tables_dir, "step2_meta_bootstrap_metrics.csv")
+    df_boot.to_csv(boot_path, index=False)
+    print(f"Saved stratified bootstrap metrics to: {boot_path}")
 
     # Fit final model on full data for deployment/inference use
     final_clf = LogisticRegression(

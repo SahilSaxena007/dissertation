@@ -47,7 +47,9 @@ python .\escalation\run_step3_thresholds.py
 4. `run_evaluation.py` -> uses OOF artifacts by default for leak-free evaluation
 5. `run_inference_batch.py --source oof` -> `../reports/tables/escalation_table_oof.csv`
 6. `step2_feature_builder.py` -> `../reports/tables/step2_meta_dataset.csv`
-7. `step2_train_meta_model.py` -> CV out-of-sample risk scores in `../reports/tables/threshold_data.csv`
+7. `step2_train_meta_model.py` ->
+   - CV out-of-sample risk scores in `../reports/tables/threshold_data.csv`
+   - Stratified bootstrap evaluation summary in `../reports/tables/step2_meta_bootstrap_metrics.csv`
 8. `run_step3_thresholds.py` ->
    - `../reports/tables/threshold_analysis.csv` (expected policy metrics under human-accuracy sensitivity)
    - `../reports/tables/threshold_analysis_by_human_accuracy.csv` (full per-threshold, per-scenario sweep)
