@@ -1,9 +1,0 @@
-{
-  "best_threshold": 0.645,
-  "review_budget": 0.2,
-  "review_rate": 0.19827586206896552,
-  "policy_accuracy": 0.853448275862069,
-  "ai_only_accuracy": 0.7758620689655172,
-  "accuracy_gain": 0.07758620689655171,
-  "human_accuracy_assumed": 1.0
-}

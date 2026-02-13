@@ -1,21 +1,17 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-Primary code is in `src/`:
-- Core pipeline: `merge_files.py`, `EDA.py`, `Preprocess.py`, `ModelsFinal.py`, `run_evaluation.py`
-- Evaluation framework: `src/eval/`
-- HITL escalation: `src/escalation/`
-- Shared constants/helpers: `src/utils/`
+Primary code is in `src/`: core pipeline scripts (`merge_files.py`, `EDA.py`, `Preprocess.py`, `ModelsFinal.py`, `run_evaluation.py`), evaluation modules in `src/eval/`, and HITL escalation logic in `src/escalation/`. Shared constants/helpers are in `src/utils/`.
 
-Data/artifact layout:
-- Raw inputs: `Study_files/`
-- Processed data: `data/`
-- Model artifacts: `artifacts/`
-- Results: `Outputs/` and `reports/`
-- Tests: `tests/`
+Data and outputs:
+- `Study_files/` raw CSVs
+- `data/` merged/preprocessed data
+- `artifacts/` models and OOF/test artifacts
+- `Outputs/` and `reports/` figures/tables
+- `tests/` standalone test scripts
 
 ## Build, Test, and Development Commands
-Run from `src/` unless stated otherwise.
+Run from `src/` unless noted.
 
 ```powershell
 python -m venv .venv
@@ -26,31 +22,32 @@ python EDA.py
 python Preprocess.py
 python ModelsFinal.py
 python run_evaluation.py
-python .\escalation\run_inference_batch.py
+python .\escalation\run_inference_batch.py --source oof
 python .\escalation\step2_feature_builder.py
 python .\escalation\step2_train_meta_model.py
 python .\escalation\run_step3_thresholds.py
 ```
 
-Tests (from repo root):
+Tests (repo root):
 ```powershell
-python tests/test_metrics.py
 python tests/test_imports.py
+python tests/test_metrics.py
 ```
 
 ## Coding Style & Naming Conventions
-Use PEP 8, 4-space indentation, `snake_case` for functions/variables, and `UPPER_CASE` for constants. Keep randomness controlled (`numpy`/`tensorflow` seeds) for reproducibility. Use descriptive script names (e.g., `step2_train_meta_model.py`).
+Use PEP 8, 4-space indentation, `snake_case` names, and `UPPER_CASE` constants. Keep training deterministic with explicit seeds. Prefer descriptive filenames (for example, `step2_train_meta_model.py`).
 
 ## Testing Guidelines
-Current tests are standalone assert-based scripts (`tests/test_*.py`), not a full pytest suite. Add deterministic tests with synthetic data and explicit assertions for metric ranges, shapes, and class ordering (`SCD`, `MCI`, `AD`).
+Tests are assert-based scripts (`tests/test_*.py`) rather than a unified pytest suite. Add deterministic tests with synthetic data and strict assertions for metric ranges, output shapes, and class order (`SCD`, `MCI`, `AD`).
 
 ## Pipeline Conventions
-- Scripts assume working directory is `src/` and use relative paths (`../data`, `../artifacts`, `../reports`).
-- `voting_ensemble.pkl` loading may require `escalation/model_stub.py:create_model` bound to `__main__` (see `src/escalation/run_inference_batch.py`).
-- Class mapping must remain `SCD=0`, `MCI=1`, `AD=2`.
+- Scripts assume CWD=`src/` and use relative paths (`../data`, `../artifacts`, `../reports`).
+- Reported performance must use OOF/CV outputs, not same-split train/eval.
+- `run_evaluation.py` should consume OOF artifacts when available.
+- Keep class mapping fixed: `SCD=0`, `MCI=1`, `AD=2`.
 
 ## Commit & Pull Request Guidelines
-Use short imperative commit messages scoped to one logical change. PRs should include changed files, why the change was needed, run commands used for validation, and generated outputs/plots when relevant.
+Use short imperative commit messages scoped to one logical change. PRs should include changed files, reason for change, validation commands run, and produced outputs/plots when relevant.
 
 ## Documentation Sync Rule
-When pipeline behavior changes, update `CLAUDE.md`, `AGENTS.md`, and `README.md` in the same change so contributor and agent guidance stay aligned.
+When pipeline behavior, artifact names, or run commands change, update `CLAUDE.md`, `AGENTS.md`, and `README.md` in the same change.
