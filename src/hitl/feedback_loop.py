@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import __main__
 from pathlib import Path
 
 import joblib
@@ -35,6 +36,21 @@ def _paths():
     }
 
 
+def _load_ensemble_with_stub(artifacts: Path):
+    """
+    Load voting ensemble with SciKeras compatibility shim for pickled NN wrappers.
+    """
+    esc_dir = Path(__file__).resolve().parents[1] / "escalation"
+    if str(esc_dir) not in sys.path:
+        sys.path.insert(0, str(esc_dir))
+    try:
+        from escalation.model_stub import create_model as _create_model
+    except Exception:
+        from model_stub import create_model as _create_model
+    __main__.create_model = _create_model
+    return joblib.load(artifacts / "voting_ensemble.pkl")
+
+
 def _build_ensemble_predict_from_models(models_dict, X):
     """Get ensemble predictions from a dict of models."""
     all_probs = [m.predict_proba(X) for m in models_dict.values()]
@@ -46,7 +62,10 @@ def _build_ensemble_predict(cat_model, rf_model, nn_model, X):
     """Get ensemble predictions from the 3 core models."""
     probs_cat = cat_model.predict_proba(X)
     probs_rf = rf_model.predict_proba(X)
-    probs_nn = nn_model.predict_proba(X)
+    if hasattr(nn_model, "predict_proba"):
+        probs_nn = nn_model.predict_proba(X)
+    else:
+        probs_nn = nn_model.predict(X, verbose=0)
     probs_ens = (probs_cat + probs_rf + probs_nn) / 3.0
     return np.argmax(probs_ens, axis=1)
 
@@ -162,7 +181,7 @@ def run_active_learning_simulation(
     ranked = np.argsort(-risk)
 
     # Round 0 baseline: load saved ensemble models
-    ensemble = joblib.load(artifacts / "voting_ensemble.pkl")
+    ensemble = _load_ensemble_with_stub(artifacts)
     for name, model in ensemble.items():
         if hasattr(model, "n_jobs"):
             model.n_jobs = 1
@@ -228,6 +247,48 @@ def run_active_learning_simulation(
         start = end
 
     return pd.DataFrame(rows)
+
+
+def run_active_learning_simulation_multi_seed(
+    clinician_accuracy: float = 0.9,
+    batch_size: int = 20,
+    max_rounds: int = 6,
+    use_confidence_weighting: bool = True,
+    seeds: list[int] | None = None,
+    fast: bool = False,
+) -> pd.DataFrame:
+    """
+    Aggregate active-learning curves across multiple random seeds.
+    """
+    if seeds is None:
+        seeds = [42, 52, 62]
+
+    runs = []
+    for seed in seeds:
+        curve = run_active_learning_simulation(
+            clinician_accuracy=clinician_accuracy,
+            batch_size=batch_size,
+            max_rounds=max_rounds,
+            use_confidence_weighting=use_confidence_weighting,
+            seed=int(seed),
+            fast=fast,
+        ).copy()
+        curve["seed"] = int(seed)
+        runs.append(curve)
+
+    all_runs = pd.concat(runs, ignore_index=True)
+    summary = (
+        all_runs.groupby("round", as_index=False)
+        .agg(
+            feedback_pool_size=("feedback_pool_size", "mean"),
+            test_accuracy_mean=("test_accuracy", "mean"),
+            test_accuracy_std=("test_accuracy", "std"),
+            test_macro_f1_mean=("test_macro_f1", "mean"),
+            test_macro_f1_std=("test_macro_f1", "std"),
+            n_seeds=("seed", "nunique"),
+        )
+    )
+    return summary
 
 
 def run_and_save_experiment(

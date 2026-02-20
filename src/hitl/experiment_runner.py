@@ -10,9 +10,9 @@ from pathlib import Path
 import pandas as pd
 
 try:
-    from .feedback_loop import run_active_learning_simulation
+    from .feedback_loop import run_active_learning_simulation, run_active_learning_simulation_multi_seed
 except ImportError:
-    from feedback_loop import run_active_learning_simulation
+    from feedback_loop import run_active_learning_simulation, run_active_learning_simulation_multi_seed
 
 
 def run_experiments(
@@ -21,6 +21,7 @@ def run_experiments(
     max_rounds: int = 6,
     use_confidence_weighting: bool = True,
     seed: int = 42,
+    seeds: list[int] | None = None,
 ) -> Path:
     root = Path(__file__).resolve().parents[2]
     out_dir = root / "reports" / "tables"
@@ -28,13 +29,28 @@ def run_experiments(
 
     frames = []
     for acc in clinician_accuracies:
-        df = run_active_learning_simulation(
-            clinician_accuracy=float(acc),
-            batch_size=batch_size,
-            max_rounds=max_rounds,
-            use_confidence_weighting=use_confidence_weighting,
-            seed=seed,
-        )
+        if seeds and len(seeds) > 1:
+            df = run_active_learning_simulation_multi_seed(
+                clinician_accuracy=float(acc),
+                batch_size=batch_size,
+                max_rounds=max_rounds,
+                use_confidence_weighting=use_confidence_weighting,
+                seeds=[int(s) for s in seeds],
+            )
+            df = df.rename(
+                columns={
+                    "test_accuracy_mean": "test_accuracy",
+                    "test_macro_f1_mean": "test_macro_f1",
+                }
+            )
+        else:
+            df = run_active_learning_simulation(
+                clinician_accuracy=float(acc),
+                batch_size=batch_size,
+                max_rounds=max_rounds,
+                use_confidence_weighting=use_confidence_weighting,
+                seed=seed,
+            )
         df["clinician_accuracy"] = float(acc)
         frames.append(df)
 
@@ -56,6 +72,13 @@ def main():
     parser.add_argument("--batch-size", type=int, default=20)
     parser.add_argument("--max-rounds", type=int, default=6)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--seeds",
+        nargs="+",
+        type=int,
+        default=None,
+        help="Optional multi-seed aggregation, e.g. --seeds 42 52 62",
+    )
     parser.add_argument("--no-confidence-weighting", action="store_true")
     args = parser.parse_args()
 
@@ -65,6 +88,7 @@ def main():
         max_rounds=args.max_rounds,
         use_confidence_weighting=not args.no_confidence_weighting,
         seed=args.seed,
+        seeds=args.seeds,
     )
     print(f"Saved simulated clinician experiment to: {out_path}")
 

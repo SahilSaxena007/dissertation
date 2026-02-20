@@ -1,7 +1,7 @@
 """
 Issue #10: Statistical Testing for HITL Pipeline
 
-McNemar's test for paired accuracy, DeLong's test for AUC, bootstrap CIs.
+McNemar's test for paired accuracy, bootstrap AUC-difference test, and bootstrap CIs.
 Saves: reports/tables/statistical_tests.csv
 
 Usage (from src/):
@@ -16,7 +16,7 @@ import os
 import numpy as np
 import pandas as pd
 from scipy import stats
-from sklearn.metrics import accuracy_score, roc_auc_score
+from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 ARTIFACTS_DIR = os.path.join(PROJECT_ROOT, "artifacts")
@@ -42,17 +42,24 @@ def mcnemar_test(y_true: np.ndarray, y_pred_a: np.ndarray, y_pred_b: np.ndarray)
     statistic = (abs(b - c) - 1) ** 2 / (b + c)
     p_value = float(1.0 - stats.chi2.cdf(statistic, df=1))
 
-    return {"statistic": float(statistic), "p_value": p_value, "b": b, "c": c}
+    matched_odds_ratio = float(c / b) if b > 0 else (float("inf") if c > 0 else 1.0)
+    return {
+        "statistic": float(statistic),
+        "p_value": p_value,
+        "b": b,
+        "c": c,
+        "matched_odds_ratio_better_b_over_a": matched_odds_ratio,
+    }
 
 
-def delong_auc_test(
+def bootstrap_auc_diff_test(
     y_true: np.ndarray,
     probs_a: np.ndarray,
     probs_b: np.ndarray,
 ) -> dict:
     """
-    Approximate DeLong's test for comparing two AUCs (multiclass OVR).
-    Uses bootstrap approximation for simplicity.
+    Bootstrap AUC-difference test for multiclass OVR.
+    This is NOT true DeLong; naming is explicit to avoid ambiguity.
     """
     auc_a = roc_auc_score(y_true, probs_a, multi_class="ovr")
     auc_b = roc_auc_score(y_true, probs_b, multi_class="ovr")
@@ -88,6 +95,7 @@ def delong_auc_test(
         "auc_diff": float(auc_a - auc_b),
         "z_statistic": float(z),
         "p_value": p_value,
+        "method": "bootstrap_auc_diff",
     }
 
 
@@ -116,6 +124,28 @@ def bootstrap_paired_metric_ci(
         "mean_diff": float(np.mean(diffs)),
         f"ci_lower_{int((1-alpha)*100)}": float(np.percentile(diffs, 100 * alpha / 2)),
         f"ci_upper_{int((1-alpha)*100)}": float(np.percentile(diffs, 100 * (1 - alpha / 2))),
+    }
+
+
+def bootstrap_metric_ci(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    metric_fn,
+    n_boot: int = 2000,
+    alpha: float = 0.05,
+    seed: int = 42,
+) -> dict:
+    rng = np.random.default_rng(seed)
+    n = len(y_true)
+    vals = []
+    for _ in range(n_boot):
+        idx = rng.choice(n, size=n, replace=True)
+        vals.append(metric_fn(y_true[idx], y_pred[idx]))
+    vals = np.asarray(vals, dtype=float)
+    return {
+        "mean": float(np.mean(vals)),
+        f"ci_lower_{int((1-alpha)*100)}": float(np.percentile(vals, 100 * alpha / 2)),
+        f"ci_upper_{int((1-alpha)*100)}": float(np.percentile(vals, 100 * (1 - alpha / 2))),
     }
 
 
@@ -153,15 +183,23 @@ def run_statistical_tests():
 
     results = []
 
+    ai_acc = float(accuracy_score(y_true, y_ai))
+    hitl_acc = float(accuracy_score(y_true, y_hitl))
+    ai_f1 = float(f1_score(y_true, y_ai, average="macro"))
+    hitl_f1 = float(f1_score(y_true, y_hitl, average="macro"))
+
     # 1. McNemar's test
     mcnemar = mcnemar_test(y_true, y_ai, y_hitl)
     results.append({
         "test": "McNemar (AI-only vs HITL)",
         "statistic": mcnemar["statistic"],
         "p_value": mcnemar["p_value"],
-        "metric_a": float(accuracy_score(y_true, y_ai)),
-        "metric_b": float(accuracy_score(y_true, y_hitl)),
-        "note": f"b={mcnemar['b']}, c={mcnemar['c']}",
+        "metric_a": ai_acc,
+        "metric_b": hitl_acc,
+        "note": (
+            f"b={mcnemar['b']}, c={mcnemar['c']}, "
+            f"matched_odds_ratio={mcnemar['matched_odds_ratio_better_b_over_a']:.4f}"
+        ),
     })
 
     # 2. Bootstrap CI for accuracy difference
@@ -170,9 +208,24 @@ def run_statistical_tests():
         "test": "Bootstrap CI (HITL - AI accuracy)",
         "statistic": acc_ci["mean_diff"],
         "p_value": float("nan"),
-        "metric_a": float(accuracy_score(y_true, y_hitl)),
-        "metric_b": float(accuracy_score(y_true, y_ai)),
+        "metric_a": hitl_acc,
+        "metric_b": ai_acc,
         "note": f"95% CI: [{acc_ci['ci_lower_95']:.4f}, {acc_ci['ci_upper_95']:.4f}]",
+    })
+
+    f1_ci = bootstrap_paired_metric_ci(
+        y_true,
+        y_hitl,
+        y_ai,
+        lambda yt, yp: f1_score(yt, yp, average="macro"),
+    )
+    results.append({
+        "test": "Bootstrap CI (HITL - AI macro F1)",
+        "statistic": f1_ci["mean_diff"],
+        "p_value": float("nan"),
+        "metric_a": hitl_f1,
+        "metric_b": ai_f1,
+        "note": f"95% CI: [{f1_ci['ci_lower_95']:.4f}, {f1_ci['ci_upper_95']:.4f}]",
     })
 
     # 3. DeLong-style AUC comparison (AI raw vs calibrated if different)
@@ -180,14 +233,51 @@ def run_statistical_tests():
     if len(probs_raw) > len(y_true):
         probs_raw = probs_raw[:len(y_true)]
     probs_cal = probs_ens
-    delong = delong_auc_test(y_true, probs_cal, probs_raw)
+    auc_diff = bootstrap_auc_diff_test(y_true, probs_cal, probs_raw)
     results.append({
-        "test": "DeLong-style AUC (calibrated vs raw)",
-        "statistic": delong.get("z_statistic", float("nan")),
-        "p_value": delong["p_value"],
-        "metric_a": delong.get("auc_a", float("nan")),
-        "metric_b": delong.get("auc_b", float("nan")),
-        "note": f"AUC diff: {delong.get('auc_diff', 0):.5f}",
+        "test": "Bootstrap AUC diff (calibrated vs raw)",
+        "statistic": auc_diff.get("z_statistic", float("nan")),
+        "p_value": auc_diff["p_value"],
+        "metric_a": auc_diff.get("auc_a", float("nan")),
+        "metric_b": auc_diff.get("auc_b", float("nan")),
+        "note": f"method={auc_diff.get('method')}, AUC diff: {auc_diff.get('auc_diff', 0):.5f}",
+    })
+
+    ai_acc_ci = bootstrap_metric_ci(y_true, y_ai, accuracy_score)
+    hitl_acc_ci = bootstrap_metric_ci(y_true, y_hitl, accuracy_score)
+    ai_f1_ci = bootstrap_metric_ci(y_true, y_ai, lambda yt, yp: f1_score(yt, yp, average="macro"))
+    hitl_f1_ci = bootstrap_metric_ci(y_true, y_hitl, lambda yt, yp: f1_score(yt, yp, average="macro"))
+    results.append({
+        "test": "AI-only accuracy CI",
+        "statistic": ai_acc_ci["mean"],
+        "p_value": float("nan"),
+        "metric_a": ai_acc,
+        "metric_b": float("nan"),
+        "note": f"95% CI: [{ai_acc_ci['ci_lower_95']:.4f}, {ai_acc_ci['ci_upper_95']:.4f}]",
+    })
+    results.append({
+        "test": "HITL accuracy CI",
+        "statistic": hitl_acc_ci["mean"],
+        "p_value": float("nan"),
+        "metric_a": hitl_acc,
+        "metric_b": float("nan"),
+        "note": f"95% CI: [{hitl_acc_ci['ci_lower_95']:.4f}, {hitl_acc_ci['ci_upper_95']:.4f}]",
+    })
+    results.append({
+        "test": "AI-only macro F1 CI",
+        "statistic": ai_f1_ci["mean"],
+        "p_value": float("nan"),
+        "metric_a": ai_f1,
+        "metric_b": float("nan"),
+        "note": f"95% CI: [{ai_f1_ci['ci_lower_95']:.4f}, {ai_f1_ci['ci_upper_95']:.4f}]",
+    })
+    results.append({
+        "test": "HITL macro F1 CI",
+        "statistic": hitl_f1_ci["mean"],
+        "p_value": float("nan"),
+        "metric_a": hitl_f1,
+        "metric_b": float("nan"),
+        "note": f"95% CI: [{hitl_f1_ci['ci_lower_95']:.4f}, {hitl_f1_ci['ci_upper_95']:.4f}]",
     })
 
     df_out = pd.DataFrame(results)

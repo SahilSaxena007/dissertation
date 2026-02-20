@@ -11,7 +11,6 @@ Usage (from src/):
 
 from __future__ import annotations
 
-import json
 import os
 
 import numpy as np
@@ -104,14 +103,47 @@ def run_fairness_analysis():
 
     df_out = pd.DataFrame(rows)
 
+    summary_rows = []
+
     # Compute disparity metrics
     if "PTGENDER" in demo.columns:
         gender_groups = df_out[df_out["group_variable"] == "PTGENDER"]
         if len(gender_groups) >= 2:
             esc_rates = gender_groups["escalation_rate"].values
             accs = gender_groups["accuracy"].values
-            df_out.loc[df_out.index[-1], "demographic_parity_diff"] = float(max(esc_rates) - min(esc_rates))
-            df_out.loc[df_out.index[-1], "equalized_odds_diff"] = float(max(accs) - min(accs))
+            summary_rows.append({
+                "group_variable": "SUMMARY",
+                "group_value": "PTGENDER_disparity",
+                "n_samples": int(gender_groups["n_samples"].sum()),
+                "accuracy": float("nan"),
+                "macro_f1": float("nan"),
+                "escalation_rate": float("nan"),
+                "demographic_parity_diff": float(max(esc_rates) - min(esc_rates)),
+                "equalized_odds_diff": float(max(accs) - min(accs)),
+            })
+
+    if "AGE" in demo.columns:
+        age_groups = df_out[df_out["group_variable"] == "AGE_bin"]
+        if len(age_groups) >= 2:
+            esc_rates = age_groups["escalation_rate"].values
+            accs = age_groups["accuracy"].values
+            summary_rows.append({
+                "group_variable": "SUMMARY",
+                "group_value": "AGE_bin_disparity",
+                "n_samples": int(age_groups["n_samples"].sum()),
+                "accuracy": float("nan"),
+                "macro_f1": float("nan"),
+                "escalation_rate": float("nan"),
+                "demographic_parity_diff": float(max(esc_rates) - min(esc_rates)),
+                "equalized_odds_diff": float(max(accs) - min(accs)),
+            })
+
+    if summary_rows:
+        df_summary = pd.DataFrame(summary_rows)
+        df_out = pd.concat([df_out, df_summary], ignore_index=True)
+        summary_out = os.path.join(TABLES_DIR, "fairness_summary.csv")
+        df_summary.to_csv(summary_out, index=False)
+        print(f"Saved fairness summary to: {summary_out}")
 
     out_path = os.path.join(TABLES_DIR, "fairness_analysis.csv")
     df_out.to_csv(out_path, index=False)

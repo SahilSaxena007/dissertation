@@ -115,6 +115,8 @@ python evaluation\statistical_tests.py
 python evaluation\cost_analysis.py
 python evaluation\ablation_study.py
 python evaluation\fairness_analysis.py
+python evaluation\efficiency_analysis.py
+python evaluation\agreement_analysis.py
 python evaluation\uncertainty_quantification.py
 ```
 
@@ -125,12 +127,30 @@ Outputs are written mainly to `../reports/tables/`.
 Run from repository root:
 
 ```powershell
-python tests/test_metrics.py
-python tests/test_hitl_phase2.py
-python tests/test_hitl_backend.py
+python scripts/run_tests.py
 ```
 
 If these pass and Phases 1-4 complete, the implementation is operational end-to-end.
+
+### Implementation Validation (single command)
+
+Run from `src/`:
+
+```powershell
+python run_validation_pipeline.py
+```
+
+This executes key HITL/evaluation scripts and verifies required `reports/tables/*.csv` outputs exist and are non-empty.
+
+### Deterministic Full Rebuild (single command)
+
+Run from `src/`:
+
+```powershell
+python run_deterministic_pipeline.py
+```
+
+This performs a deterministic end-to-end rebuild (data prep -> training -> HITL Phase 2 -> validation checks).
 
 ## End-to-End Pipeline (OOF-first)
 
@@ -155,6 +175,8 @@ python evaluation\statistical_tests.py
 python evaluation\cost_analysis.py
 python evaluation\ablation_study.py
 python evaluation\fairness_analysis.py
+python evaluation\efficiency_analysis.py
+python evaluation\agreement_analysis.py
 python evaluation\uncertainty_quantification.py
 ```
 
@@ -199,10 +221,12 @@ python evaluation\uncertainty_quantification.py
    - `../reports/tables/hitl_simulated_clinician_experiment.csv`
    - Feedback loop retrains actual CatBoost+RF+NN ensemble (not surrogate)
 12. Evaluation scripts ->
-   - `evaluation/statistical_tests.py` -> `../reports/tables/statistical_tests.csv` (McNemar, DeLong, bootstrap CIs)
+   - `evaluation/statistical_tests.py` -> `../reports/tables/statistical_tests.csv` (McNemar, bootstrap AUC-difference test, bootstrap CIs)
    - `evaluation/cost_analysis.py` -> `../reports/tables/cost_analysis.csv` (clinical cost-weighted accuracy)
    - `evaluation/ablation_study.py` -> `../reports/tables/ablation_study.csv` (meta-model feature ablation)
-   - `evaluation/fairness_analysis.py` -> `../reports/tables/fairness_analysis.csv` (per-group demographic metrics)
+   - `evaluation/fairness_analysis.py` -> `../reports/tables/fairness_analysis.csv`, `../reports/tables/fairness_summary.csv` (per-group + disparity summary metrics)
+   - `evaluation/efficiency_analysis.py` -> `../reports/tables/efficiency_analysis.csv`, `../reports/tables/efficiency_summary.csv` (decision-time and interaction metrics from HITL logs)
+   - `evaluation/agreement_analysis.py` -> `../reports/tables/agreement_analysis.csv`, `../reports/tables/agreement_summary.csv` (AI-human agreement/disagreement by class/escalation reason)
    - `evaluation/uncertainty_quantification.py` -> `../reports/tables/conformal_prediction.csv`, `../reports/tables/uncertainty_decomposition.csv`
 
 ## Optional Legacy Mode
@@ -214,17 +238,10 @@ python evaluation\uncertainty_quantification.py
 Run from repository root:
 
 ```powershell
-python tests/test_imports.py
-python tests/test_metrics.py
-python tests/test_uncertainty.py
-python tests/test_statistical.py
-python tests/test_explainability.py
-python tests/test_taxonomy.py
-python tests/test_bias.py
-python tests/test_visualization.py
-python tests/test_hitl_phase2.py
-python tests/test_hitl_backend.py
+python scripts/run_tests.py
 ```
+
+This runs the full test suite with UTF-8 output and automatically prefers `src/.venv/Scripts/python.exe` when available.
 
 ## Notes
 

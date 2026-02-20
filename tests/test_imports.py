@@ -1,25 +1,39 @@
+﻿"""
+Quick import smoke test for core modules.
 """
-Quick test to verify all module imports work (no runtime yet).
-"""
+
+import os
+import sys
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SRC_DIR = os.path.join(ROOT, "src")
+if SRC_DIR not in sys.path:
+    sys.path.insert(0, SRC_DIR)
 
 print("Testing imports...")
 
-try:
-    from eval import orchestrator
-    print("✅ eval.performance_analysis imported")
-except Exception as e:
-    print(f"❌ eval.performance_analysis: {e}")
+targets = [
+    ("eval.orchestrator", "from eval import orchestrator"),
+    ("eval.metrics", "from eval import metrics"),
+    ("utils.constants", "from utils import constants"),
+    ("escalation.escalation_engine", "from escalation import escalation_engine"),
+    ("hitl.feedback_loop", "from hitl import feedback_loop"),
+    ("dashboard.app", "from dashboard import app"),
+]
 
-try:
-    from models import base_models
-    print("✅ models.base_models imported")
-except Exception as e:
-    print(f"❌ models.base_models: {e}")
+failures = []
+for name, stmt in targets:
+    try:
+        exec(stmt, {})
+        print(f"[OK] {name}")
+    except Exception as e:
+        failures.append((name, str(e)))
+        print(f"[FAIL] {name}: {e}")
 
-try:
-    from utils import constants
-    print("✅ utils.constants imported")
-except Exception as e:
-    print(f"❌ utils.constants: {e}")
+if failures:
+    print("\nImport failures:")
+    for name, err in failures:
+        print(f"- {name}: {err}")
+    raise SystemExit(1)
 
-print("\n✅ All imports successful! Ready for Step 2.")
+print("\nAll imports successful.")

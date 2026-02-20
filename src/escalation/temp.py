@@ -1,26 +1,9 @@
-import joblib
-import inspect
-from model_stub import create_model
+﻿"""
+Legacy debugging scratch file.
 
+This module is intentionally kept as a placeholder to avoid accidental imports.
+Use `run_inference_batch.py` or `run_phase2_hitl.py` for real execution.
+"""
 
-path = "../artifacts/voting_ensemble.pkl"
-
-print("\n🔍 Loading pickle…")
-data = joblib.load(path)
-
-print("\n🔑 Keys found:", data.keys())
-
-print("\n📌 Types:")
-for key, value in data.items():
-    print(f"• {key} → {type(value)}")
-
-print("\n🎯 Checking if Keras model is inside…")
-for key, value in data.items():
-    try:
-        print(key, value.__class__.__module__)
-    except:
-        pass
-
-models = joblib.load("../artifacts/voting_ensemble.pkl")
-nn = models["nn"]
-print('jdfjdfjdfn: ',nn.model_.input_shape)
+if __name__ == "__main__":
+    print("Deprecated: use escalation/run_phase2_hitl.py or escalation/run_inference_batch.py")
