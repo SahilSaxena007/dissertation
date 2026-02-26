@@ -63,7 +63,7 @@ The escalation engine depends on well-calibrated probabilities. Without calibrat
 - **Report**: Show calibration curves before/after, compute Expected Calibration Error (ECE)
 
 ### 1.2 Expanded Model Zoo
-Add at least 2 more base learners to strengthen the ensemble:
+Add at least 2 m/ore base learners to strengthen the ensemble:
 - **XGBoost**: Strong gradient boosting alternative to CatBoost
 - **LightGBM**: Fast, handles missing values natively
 - **SVM with RBF kernel**: Different inductive bias (margin-based)

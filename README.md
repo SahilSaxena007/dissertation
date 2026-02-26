@@ -165,7 +165,6 @@ python selectkbest_test.py
 python ModelsFinal.py
 python run_evaluation.py
 python .\escalation\run_phase2_hitl.py --run-testset-demo
-streamlit run .\dashboard\app.py
 python .\escalation\run_inference_batch.py --source oof
 python .\escalation\step2_feature_builder.py
 python .\escalation\step2_train_meta_model.py
@@ -178,6 +177,7 @@ python evaluation\fairness_analysis.py
 python evaluation\efficiency_analysis.py
 python evaluation\agreement_analysis.py
 python evaluation\uncertainty_quantification.py
+streamlit run .\dashboard\app.py
 ```
 
 ### Step outputs
