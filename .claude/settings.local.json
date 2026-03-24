@@ -8,7 +8,8 @@
       "Bash(git checkout:*)",
       "Bash(wc:*)",
       "Bash(python -c \"\nimport ast, sys\ntry:\n    with open\\(r''C:\\\\Users\\\\sahil\\\\Documents\\\\Projects\\\\dissertation\\\\src\\\\ModelsFinal.py'', ''r''\\) as f:\n        ast.parse\\(f.read\\(\\)\\)\n    print\\(''ModelsFinal.py: syntax OK''\\)\nexcept SyntaxError as e:\n    print\\(f''ModelsFinal.py: SYNTAX ERROR at line {e.lineno}: {e.msg}''\\)\n\")",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Bash(xargs grep:*)"
     ]
   }
 }
