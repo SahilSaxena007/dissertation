@@ -18,6 +18,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, f1_score, log_loss, roc_auc_score
 from sklearn.model_selection import RepeatedStratifiedKFold, StratifiedKFold, train_test_split
 from sklearn.preprocessing import RobustScaler
+from sklearn.utils.class_weight import compute_sample_weight
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from tensorflow.keras.layers import BatchNormalization, Dense, Dropout, Input
 from tensorflow.keras.models import Sequential
@@ -280,9 +281,10 @@ for split_idx, (train_idx, val_idx) in enumerate(cv.split(X_train_all, y_train_a
         epochs=120,
         batch_size=32,
         verbose=0,
+        validation_split=0.1,
         callbacks=[
-            EarlyStopping(monitor="loss", patience=10, restore_best_weights=True),
-            ReduceLROnPlateau(monitor="loss", factor=0.5, patience=5, min_lr=1e-6),
+            EarlyStopping(monitor="val_loss", patience=10, restore_best_weights=True),
+            ReduceLROnPlateau(monitor="val_loss", factor=0.5, patience=5, min_lr=1e-6),
         ],
     )
     xgb_model_fold = XGBClassifier(
@@ -301,10 +303,11 @@ for split_idx, (train_idx, val_idx) in enumerate(cv.split(X_train_all, y_train_a
         class_weight="balanced",
     )
 
+    xgb_sample_weight_fold = compute_sample_weight("balanced", y_train)
     cat_model_fold.fit(X_train_scaled, y_train)
     rf_model_fold.fit(X_train_scaled, y_train)
     nn_model_fold.fit(X_train_scaled, y_train)
-    xgb_model_fold.fit(X_train_scaled, y_train)
+    xgb_model_fold.fit(X_train_scaled, y_train, sample_weight=xgb_sample_weight_fold)
     svm_model_fold.fit(X_train_scaled, y_train)
 
     y_prob_cat_fold = cat_model_fold.predict_proba(X_val_scaled)
@@ -538,9 +541,10 @@ nn_model = KerasClassifier(
     epochs=120,
     batch_size=32,
     verbose=0,
+    validation_split=0.1,
     callbacks=[
-        EarlyStopping(monitor="loss", patience=10, restore_best_weights=True),
-        ReduceLROnPlateau(monitor="loss", factor=0.5, patience=5, min_lr=1e-6),
+        EarlyStopping(monitor="val_loss", patience=10, restore_best_weights=True),
+        ReduceLROnPlateau(monitor="val_loss", factor=0.5, patience=5, min_lr=1e-6),
     ],
 )
 xgb_model = XGBClassifier(
@@ -559,10 +563,11 @@ svm_model = SVC(
     class_weight="balanced",
 )
 
+xgb_sample_weight = compute_sample_weight("balanced", y_train_all)
 cat_model.fit(X_train_scaled, y_train_all)
 rf_model.fit(X_train_scaled, y_train_all)
 nn_model.fit(X_train_scaled, y_train_all)
-xgb_model.fit(X_train_scaled, y_train_all)
+xgb_model.fit(X_train_scaled, y_train_all, sample_weight=xgb_sample_weight)
 svm_model.fit(X_train_scaled, y_train_all)
 
 joblib.dump(cat_model, "../artifacts/best_model_catboost.pkl")

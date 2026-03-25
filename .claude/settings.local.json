@@ -12,7 +12,8 @@
       "Bash(xargs grep:*)",
       "Bash(python -c \":*)",
       "Bash(sqlite3:*)",
-      "Bash(find /c/Users/sahil/Documents/Projects/dissertation/artifacts -name *.json -type f)"
+      "Bash(find /c/Users/sahil/Documents/Projects/dissertation/artifacts -name *.json -type f)",
+      "Bash(python3:*)"
     ]
   }
 }
