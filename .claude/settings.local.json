@@ -36,7 +36,8 @@
       "Bash(TF_ENABLE_ONEDNN_OPTS=0 TF_CPP_MIN_LOG_LEVEL=2 \"$VENV_PY\" evaluation/statistical_tests.py)",
       "Bash(TF_ENABLE_ONEDNN_OPTS=0 TF_CPP_MIN_LOG_LEVEL=2 \"$VENV_PY\" evaluation/ablation_study.py)",
       "Bash(TF_ENABLE_ONEDNN_OPTS=0 TF_CPP_MIN_LOG_LEVEL=2 \"$VENV_PY\" evaluation/uncertainty_quantification.py)",
-      "Bash(TF_ENABLE_ONEDNN_OPTS=0 TF_CPP_MIN_LOG_LEVEL=2 \"$VENV_PY\" evaluation/fairness_analysis.py)"
+      "Bash(TF_ENABLE_ONEDNN_OPTS=0 TF_CPP_MIN_LOG_LEVEL=2 \"$VENV_PY\" evaluation/fairness_analysis.py)",
+      "Bash(\"$VENV_PY\" -m py_compile \"C:/Users/sahil/Documents/Projects/dissertation/src/dashboard/app.py\")"
     ]
   }
 }

@@ -321,7 +321,7 @@ def render_patient_queue(df: pd.DataFrame):
     c1, c2, c3, c4 = st.columns(4)
     levels = c1.multiselect("Escalation Level", sorted(df["escalation_level"].dropna().unique()), default=[])
     klass = c2.multiselect("Predicted Class", sorted(df["pred_ens_name"].dropna().unique()), default=[])
-    risk_min = float(c3.slider("Min Risk Score", 0.0, 1.0, 0.0, 0.01))
+    risk_min = float(c3.slider("Min Reliability Score", 0.0, 1.0, 0.0, 0.01))
     conf_max = float(c4.slider("Max Confidence", 0.0, 1.0, 1.0, 0.01))
 
     q = df.copy()
@@ -329,7 +329,7 @@ def render_patient_queue(df: pd.DataFrame):
         q = q[q["escalation_level"].isin(levels)]
     if klass:
         q = q[q["pred_ens_name"].isin(klass)]
-    q = q[(q["review_risk_score"] >= risk_min) & (q["ens_max_prob"] <= conf_max)]
+    q = q[(q["review_risk_score"] <= (1 - risk_min)) & (q["ens_max_prob"] <= conf_max)]
     q = q.sort_values(["review_risk_score", "ens_entropy"], ascending=[False, False])
 
     show = q[
@@ -344,6 +344,9 @@ def render_patient_queue(df: pd.DataFrame):
             "escalation_reasons",
         ]
     ].head(200)
+    show = show.copy()
+    show["review_risk_score"] = (1 - show["review_risk_score"]).round(3)
+    show = show.rename(columns={"review_risk_score": "ai_reliability_score"})
 
     def _style_row(row):
         return [f"background-color: {_escalation_color(row['escalation_level'])}22"] * len(row)
@@ -382,12 +385,13 @@ def render_patient_detail(
         st.markdown(f"**Predicted:** `{row['pred_ens_name']}`")
         st.markdown(f"**True label:** `{row.get('true_label_name', 'n/a')}`")
         st.markdown(f"**Escalation:** `{row['escalation_level']}`")
-        st.markdown(f"**Risk score:** `{float(row['review_risk_score']):.3f}` | **tau*** `{tau_star:.3f}`")
+        st.markdown(f"**AI Prediction Reliability Score:** `{1 - float(row['review_risk_score']):.3f}` | **Threshold:** `{1 - tau_star:.3f}` *(escalate if below)*")
         st.markdown(f"**Reasons:** `{str(row.get('escalation_reasons', '') or 'none')}`")
 
         df_prob = pd.DataFrame({"class": CLASS_NAMES, "probability": p})
         fig_prob = px.bar(df_prob, x="class", y="probability", range_y=[0, 1], color="class")
-        fig_prob.update_layout(height=300, margin=dict(l=10, r=10, t=20, b=10), showlegend=False)
+        fig_prob.update_layout(height=300, margin=dict(l=10, r=10, t=20, b=10), showlegend=False,
+                               plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
         st.plotly_chart(fig_prob, use_container_width=True)
 
     with col2:
@@ -424,7 +428,8 @@ def render_patient_detail(
             color_continuous_scale="RdBu",
             title=chart_title,
         )
-        fig_wf.update_layout(height=340, margin=dict(l=10, r=10, t=40, b=10))
+        fig_wf.update_layout(height=340, margin=dict(l=10, r=10, t=40, b=10),
+                             plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
         st.plotly_chart(fig_wf, use_container_width=True)
 
     st.markdown("**Biomarker Values**")
@@ -444,7 +449,9 @@ def render_patient_detail(
     sim = df[df["sample_id"].isin(sim_ids)][
         ["sample_id", "true_label_name", "pred_ens_name", "review_risk_score", "escalation_level"]
     ].copy()
-    st.dataframe(sim.sort_values("review_risk_score", ascending=False), use_container_width=True)
+    sim["review_risk_score"] = (1 - sim["review_risk_score"]).round(3)
+    sim = sim.rename(columns={"review_risk_score": "ai_reliability_score"})
+    st.dataframe(sim.sort_values("ai_reliability_score", ascending=True), use_container_width=True)
 
     st.markdown("**Clinician Input Form**")
     with st.form(key=f"review_form_{source}_{int(sample_id)}"):
@@ -570,123 +577,309 @@ def render_feedback_history():
 
 
 def render_new_patient_inference():
-    st.subheader("New Patient Inference (Unseen Data)")
+    # ── Page description ─────────────────────────────────────────────
+    st.markdown("## New Patient Prediction")
+    st.markdown(
+        """
+        Enter a patient's biomarker values below to:
+        - **Predict the most likely cognitive stage** — Subjective Cognitive Decline (SCD), Mild Cognitive Impairment (MCI), or Alzheimer's Disease (AD)
+        - **Determine whether the case should be passed to a clinician** for further review, based on the AI's confidence and risk assessment
+
+        > Default values are populated from training-set medians. Leave them unchanged if a measurement is unavailable.
+        """
+    )
+    st.markdown("---")
+
     models, scaler, imputer, selector, meta_model, selected_features, tau_star, preproc, medians, _ = load_assets()
 
+    # ── Input mode ───────────────────────────────────────────────────
+    st.markdown("#### Step 1 — Enter Patient Data")
     mode = st.radio("Input Mode", ["Manual Entry", "CSV Upload"], horizontal=True)
     patient_df = None
     pre_imp_nan_mask = None
 
     if mode == "Manual Entry":
+        st.caption("Enter the 12 biomarker values for this patient. Fields pre-filled with population medians.")
         vals = {}
         cols = st.columns(3)
         for i, f in enumerate(selected_features):
             vals[f] = float(cols[i % 3].number_input(f, value=float(medians.get(f, 0.0))))
         patient_df = pd.DataFrame([vals])[selected_features]
-        # Manual entry: no missing data
         pre_imp_nan_mask = np.zeros((1, len(selected_features)), dtype=bool)
     else:
+        st.caption("Upload a CSV containing the 12 required biomarker columns. Missing values will be imputed automatically.")
         up = st.file_uploader("Upload CSV with feature columns", type=["csv"])
         if up is not None:
             df_up = pd.read_csv(up)
 
-            # Check if CSV has all raw features (needs full pipeline) or just selected 12
             all_raw_features = list(preproc.columns) if preproc is not None else []
             has_all_raw = all_raw_features and all(c in df_up.columns for c in all_raw_features if c != "DX")
 
             if has_all_raw:
-                # Full pipeline: imputer -> selector -> scaler
                 raw_cols = [c for c in all_raw_features if c != "DX"]
                 X_raw = df_up[raw_cols].values.astype(float)
                 pre_imp_nan_mask_raw = np.isnan(X_raw)
                 X_imp = imputer.transform(X_raw)
                 X_sel = selector.transform(X_imp)
-                # Project NaN mask through selector
                 selector_support = selector.get_support()
                 pre_imp_nan_mask = pre_imp_nan_mask_raw[:, selector_support]
                 patient_df = pd.DataFrame(X_sel, columns=selected_features)
-                st.caption(f"Loaded {len(patient_df)} patient(s) - applied full imputer->selector pipeline.")
+                st.success(f"Loaded {len(patient_df)} patient(s) — full imputation pipeline applied.")
             else:
                 missing = [f for f in selected_features if f not in df_up.columns]
                 if missing:
                     st.error(f"Missing required columns: {missing}")
                     return
                 patient_df = df_up[selected_features].copy()
-                # Track NaN before median fill
                 pre_imp_nan_mask = patient_df.isna().values
-                # Median-fill any NaN for 12-feature CSVs
                 for f in selected_features:
                     if patient_df[f].isna().any():
                         patient_df[f] = patient_df[f].fillna(medians.get(f, 0.0))
-                st.caption(f"Loaded {len(patient_df)} patient(s).")
+                st.success(f"Loaded {len(patient_df)} patient(s).")
 
     if patient_df is None:
         return
 
-    if st.button("Run Prediction + HITL Policy"):
-        X_scaled = scaler.transform(patient_df.values.astype(float))
-        all_model_probs = _predict_ensemble_probs(models=models, X=X_scaled)
-        probs_ens = np.mean(np.stack(list(all_model_probs.values()), axis=0), axis=0)
+    # ── Run button ───────────────────────────────────────────────────
+    st.markdown("#### Step 2 — Run Assessment")
+    run_clicked = st.button("Predict Diagnosis & Assess for Clinician Review", type="primary", use_container_width=True)
 
-        # Extract core 3 for escalation engine backward compat
-        probs_cat = all_model_probs.get("catboost", list(all_model_probs.values())[0])
-        probs_rf = all_model_probs.get("rf", list(all_model_probs.values())[min(1, len(all_model_probs) - 1)])
-        probs_nn = all_model_probs.get("nn", list(all_model_probs.values())[min(2, len(all_model_probs) - 1)])
+    if not run_clicked:
+        return
 
-        config = build_escalation_config(selected_features)
+    # ── Compute ──────────────────────────────────────────────────────
+    X_scaled = scaler.transform(patient_df.values.astype(float))
+    all_model_probs = _predict_ensemble_probs(models=models, X=X_scaled)
+    probs_ens = np.mean(np.stack(list(all_model_probs.values()), axis=0), axis=0)
 
-        df_case = run_batch_escalation_from_probabilities(
-            X=X_scaled,
-            y_true=None,
-            probs_cat=probs_cat,
-            probs_rf=probs_rf,
-            probs_nn=probs_nn,
-            probs_ens_override=probs_ens,
-            class_names=CLASS_NAMES,
-            config=config,
-            nan_mask=pre_imp_nan_mask,
-        ).reset_index()
-        X_meta = _risk_features_from_df(df_case)
-        df_case["review_risk_score"] = meta_model.predict_proba(X_meta)[:, 1]
-        df_case["final_policy"] = np.where(df_case["review_risk_score"] >= tau_star, "ESCALATE", "AI-AUTONOMOUS")
+    probs_cat = all_model_probs.get("catboost", list(all_model_probs.values())[0])
+    probs_rf = all_model_probs.get("rf", list(all_model_probs.values())[min(1, len(all_model_probs) - 1)])
+    probs_nn = all_model_probs.get("nn", list(all_model_probs.values())[min(2, len(all_model_probs) - 1)])
 
-        show_cols = [
-            "sample_id",
-            "pred_ens_name",
-            "ens_max_prob",
-            "ens_entropy",
-            "escalation_level",
-            "escalation_reasons",
-            "review_risk_score",
-            "final_policy",
-        ]
-        st.dataframe(df_case[show_cols], use_container_width=True)
+    config = build_escalation_config(selected_features)
+    df_case = run_batch_escalation_from_probabilities(
+        X=X_scaled,
+        y_true=None,
+        probs_cat=probs_cat,
+        probs_rf=probs_rf,
+        probs_nn=probs_nn,
+        probs_ens_override=probs_ens,
+        class_names=CLASS_NAMES,
+        config=config,
+        nan_mask=pre_imp_nan_mask,
+    ).reset_index()
+    X_meta = _risk_features_from_df(df_case)
+    df_case["review_risk_score"] = meta_model.predict_proba(X_meta)[:, 1]
+    df_case["final_policy"] = np.where(df_case["review_risk_score"] >= tau_star, "ESCALATE", "AI-AUTONOMOUS")
 
-        first_probs = pd.DataFrame({"class": CLASS_NAMES, "probability": probs_ens[0]})
-        st.plotly_chart(px.bar(first_probs, x="class", y="probability", range_y=[0, 1], color="class"), use_container_width=True)
-        st.success(f"Applied Step 2 + Step 3 policy with tau*={tau_star:.3f}.")
+    # ── Results ──────────────────────────────────────────────────────
+    st.markdown("---")
+    st.markdown("#### Results")
+
+    n_patients = len(df_case)
+    is_batch = n_patients > 1
+
+    if not is_batch:
+        # ── Single patient — structured card layout ───────────────────
+        row = df_case.iloc[0]
+        policy = str(row["final_policy"])
+        pred_name = str(row["pred_ens_name"])
+        confidence = float(row["ens_max_prob"])
+        risk_score = float(row["review_risk_score"])
+        reasons = str(row.get("escalation_reasons", "") or "").strip()
+
+        # Decision banner
+        if policy == "ESCALATE":
+            st.markdown(
+                f"""<div class="decision-escalate">
+                <h3 style="margin:0;color:#ffffff;">&#9888; Clinician Review Required</h3>
+                <p style="margin:0.3rem 0 0 0;color:#fecaca;">
+                The AI system is not sufficiently confident in this result.
+                This patient should be reviewed by a clinician before a diagnosis is confirmed.
+                </p></div>""",
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                f"""<div class="decision-autonomous">
+                <h3 style="margin:0;color:#ffffff;">&#10003; AI Assessment — No Escalation Needed</h3>
+                <p style="margin:0.3rem 0 0 0;color:#bbf7d0;">
+                The model is confident in this prediction. No immediate clinician review is required.
+                </p></div>""",
+                unsafe_allow_html=True,
+            )
+
+        # Key metrics row
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Predicted Diagnosis", pred_name)
+        m2.metric("Model Confidence", f"{confidence:.0%}")
+        m3.metric("AI Prediction Reliability Score", f"{1 - risk_score:.3f}", help=f"Reliability threshold={1 - tau_star:.3f}. Scores below this trigger escalation.")
+
+        st.markdown("")
+
+        # Chart + escalation detail side by side
+        c_left, c_right = st.columns([1.2, 1.0])
+
+        with c_left:
+            st.markdown("**Probability by Diagnosis Class**")
+            first_probs = pd.DataFrame({"Diagnosis": CLASS_NAMES, "Probability": probs_ens[0]})
+            colors = {"SCD": "#3b82f6", "MCI": "#f59e0b", "AD": "#ef4444"}
+            fig = px.bar(
+                first_probs,
+                x="Diagnosis",
+                y="Probability",
+                range_y=[0, 1],
+                color="Diagnosis",
+                color_discrete_map=colors,
+                text=first_probs["Probability"].apply(lambda v: f"{v:.1%}"),
+            )
+            fig.update_traces(textposition="outside")
+            fig.update_layout(
+                height=300,
+                margin=dict(l=10, r=10, t=20, b=10),
+                showlegend=False,
+                plot_bgcolor="rgba(0,0,0,0)",
+                paper_bgcolor="rgba(0,0,0,0)",
+                yaxis=dict(gridcolor="rgba(128,128,128,0.2)", tickformat=".0%"),
+                font=dict(size=13),
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+        with c_right:
+            st.markdown("**Escalation Detail**")
+            st.markdown(f"- **Escalation level:** `{row['escalation_level']}`")
+            st.markdown(f"- **AI Prediction Reliability Score:** `{1 - risk_score:.3f}` (threshold: `{1 - tau_star:.3f}` — escalate if below)")
+            if reasons and reasons != "nan":
+                st.markdown("**Reasons flagged:**")
+                for r in reasons.split(";"):
+                    r = r.strip().replace("_", " ").capitalize()
+                    if r:
+                        st.markdown(f"  - {r}")
+            else:
+                st.markdown("- No specific risk reasons flagged.")
+
+            entropy = float(row.get("ens_entropy", 0))
+            st.markdown(f"- **Prediction entropy:** `{entropy:.3f}` *(lower = more certain)*")
+
+        # ── Full details table ────────────────────────────────────────
+        st.markdown("---")
+        st.markdown("**Full Assessment Record**")
+        detail = pd.DataFrame([{
+            "Predicted Diagnosis": pred_name,
+            "Confidence": f"{confidence:.1%}",
+            "AI Prediction Reliability Score": f"{1 - risk_score:.3f}",
+            "Reliability Threshold": f"{1 - tau_star:.3f}",
+            "Escalation Level": str(row.get("escalation_level", "")),
+            "Decision": policy,
+            "Entropy": f"{entropy:.3f}",
+            "Escalation Reasons": "; ".join(
+                r.strip().replace("_", " ").capitalize()
+                for r in reasons.split(";") if r.strip() and reasons != "nan"
+            ) or "None",
+        }])
+        st.dataframe(detail.T.rename(columns={0: "Value"}), use_container_width=True)
+
+    else:
+        # ── Batch — clean summary table ───────────────────────────────
+        n_escalate = int((df_case["final_policy"] == "ESCALATE").sum())
+        n_auto = n_patients - n_escalate
+
+        b1, b2, b3 = st.columns(3)
+        b1.metric("Patients Assessed", n_patients)
+        b2.metric("Require Clinician Review", n_escalate, delta=f"{n_escalate/n_patients:.0%} of batch", delta_color="off")
+        b3.metric("AI-Autonomous", n_auto)
+
+        st.markdown("")
+        st.markdown("**Per-Patient Summary**")
+
+        display = df_case[[
+            "sample_id", "pred_ens_name", "ens_max_prob", "review_risk_score", "final_policy", "escalation_reasons"
+        ]].copy()
+        display.columns = ["Patient ID", "Predicted Diagnosis", "Confidence", "AI Reliability Score", "Decision", "Escalation Reasons"]
+        display["Confidence"] = display["Confidence"].apply(lambda v: f"{v:.1%}")
+        display["AI Reliability Score"] = display["AI Reliability Score"].apply(lambda v: f"{1 - float(v):.3f}")
+
+        def _style_decision(val):
+            if val == "ESCALATE":
+                return "background-color: #fff1f2; color: #be123c; font-weight: 600"
+            return "background-color: #f0fdf4; color: #15803d; font-weight: 600"
+
+        st.dataframe(
+            display.style.applymap(_style_decision, subset=["Decision"]),
+            use_container_width=True,
+            hide_index=True,
+        )
 
 
 def main():
-    st.title("HITL Clinician Dashboard")
-    st.caption("Supports retrospective analysis and true unseen patient inference.")
+    st.markdown(
+        """
+        <style>
+        [data-testid="stSidebar"] { background-color: #1a1f2e; }
+        [data-testid="stSidebar"] * { color: #e2e8f0 !important; }
+        [data-testid="stSidebar"] hr { border-color: #334155 !important; }
+        .sidebar-section { font-size: 0.72rem; font-weight: 700; color: #94a3b8 !important;
+                           text-transform: uppercase; letter-spacing: 0.08em;
+                           margin: 1.1rem 0 0.3rem 0; }
+        .decision-escalate { background: #dc2626; border-left: 6px solid #991b1b;
+                              padding: 1.1rem 1.5rem; border-radius: 6px; margin-bottom: 1rem; }
+        .decision-autonomous { background: #16a34a; border-left: 6px solid #14532d;
+                               padding: 1.1rem 1.5rem; border-radius: 6px; margin-bottom: 1rem; }
+        .section-divider { border: none; border-top: 1px solid #e5e7eb; margin: 1.2rem 0; }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # ── Sidebar ───────────────────────────────────────────────────────
+    with st.sidebar:
+        st.image("https://img.icons8.com/color/96/brain.png", width=52)
+        st.markdown("## Alzheimer's HITL System")
+        st.caption("AI-assisted triage with clinician oversight")
+        st.markdown("---")
+
+        st.markdown('<p class="sidebar-section">Workspace</p>', unsafe_allow_html=True)
+        mode = st.radio(
+            "Mode",
+            ["New Patient Prediction", "Retrospective Review"],
+            index=0,
+            label_visibility="collapsed",
+        )
+
+        if mode == "Retrospective Review":
+            st.markdown('<p class="sidebar-section">Data Source</p>', unsafe_allow_html=True)
+            source = st.selectbox(
+                "Dataset",
+                ["testset", "oof"],
+                format_func=lambda x: "Holdout Test Set (116 patients)" if x == "testset" else "Training OOF Set (460 patients)",
+                label_visibility="collapsed",
+            )
+            st.markdown('<p class="sidebar-section">Navigation</p>', unsafe_allow_html=True)
+            nav = st.radio(
+                "View",
+                ["Patient Queue", "Patient Detail / Review", "Analytics Dashboard", "Feedback History"],
+                label_visibility="collapsed",
+            )
+
+        st.markdown("---")
+        st.caption("Model: 5-model ensemble | Reliability threshold=0.325 | ADNI dataset")
 
     ensure_db(get_default_db_path())
     if "session_id" not in st.session_state:
         st.session_state["session_id"] = str(uuid.uuid4())
 
     models, _, _, _, _, selected_features, tau_star, _, _, _ = load_assets()
-    _ = models  # keep models loaded in cache
+    _ = models
 
-    mode = st.sidebar.radio("Mode", ["Retrospective Review", "New Patient Inference"], index=1)
+    # ── Page header ───────────────────────────────────────────────────
+    st.markdown("# Alzheimer's Disease HITL Clinical Dashboard")
+    st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
 
-    if mode == "New Patient Inference":
+    if mode == "New Patient Prediction":
         render_new_patient_inference()
         return
 
-    source = st.sidebar.selectbox("Retrospective Source", ["testset", "oof"], index=0)
     df, probs, X, raw_features = load_retrospective_dataset(source=source)
-    nav = st.sidebar.radio("View", ["Patient Queue", "Patient Detail / Review", "Analytics Dashboard", "Feedback History"])
 
     if nav == "Patient Queue":
         render_patient_queue(df)

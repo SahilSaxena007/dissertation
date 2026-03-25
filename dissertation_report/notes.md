@@ -45,3 +45,63 @@ Cross-validation intentionally produces conservative generalisation estimates; t
 
 This is a good thing to explain in your report — it shows you understand the
 methodology deeply, which is exactly what gets you Outstanding marks.
+
+From within your activated venv, from the src/ directory:  
+ cd C:\Users\sahil\Documents\Projects\dissertation\src  
+ streamlit run dashboard/app.py  
+ Opens at http://localhost:8501. --- What the Dashboard Contains There are two main modes, selectable from the sidebar: --- Mode 1 — New Patient Inference (default) A clinician enters biomarker values manually (or uploads a CSV), clicks Run Prediction + HITL Policy, and gets: - The ensemble prediction (SCD / MCI / AD) with per-class probabilities bar chart - Whether the system escalates or runs autonomously (based on τ\*=0.675) - The escalation reasons (entropy too high, model disagreement, missing biomarkers, etc.) Data used: No historical data — pure live inference through the trained  
+ pipeline.
+
+---
+
+Mode 2 — Retrospective Review
+
+Uses historical data. There's a dropdown to pick the source:
+
+┌───────────────┬─────────────────────────────────────────────────────┬─────┐  
+ │ Source │ What it is │ n │  
+ ├───────────────┼─────────────────────────────────────────────────────┼─────┤  
+ │ testset │ The 20% holdout — cases the model has never seen │ 116 │  
+ │ (default) │ during training │ │  
+ ├───────────────┼─────────────────────────────────────────────────────┼─────┤  
+ │ oof │ The 80% training set with OOF predictions — each │ 460 │  
+ │ │ case predicted by a fold that excluded it │ │  
+ └───────────────┴─────────────────────────────────────────────────────┴─────┘
+
+The testset is the correct one for demonstrations — it's genuinely unseen data.
+
+Within retrospective mode there are 4 views:
+
+Patient Queue — Sortable/filterable list of all cases ranked by risk score.  
+ Coloured by escalation level (red=mandatory, amber=AI-assisted,
+green=autonomous).
+
+Patient Detail / Review — Click into any patient by Sample ID:
+
+- Predicted class + true label + escalation level + risk score
+- Per-class probability bar chart
+- SHAP feature attribution waterfall chart (falls back to surrogate if SHAP  
+  cache missing)
+- Biomarker values table with reference ranges
+- 5 nearest-neighbour similar patients
+- Clinician input form — agree/disagree, corrected diagnosis, confidence, notes
+  → saved to SQLite DB
+
+Analytics Dashboard — Aggregate view:
+
+- AI-only accuracy, escalation rate, cases reviewed
+- Cumulative AI vs HITL accuracy over time (from actual logged feedback)
+- Escalation rate by diagnosis class
+- Live simulation widget (re-runs the HITL experiment with custom parameters)
+
+Feedback History — Table of all submitted clinician reviews with export to CSV.
+
+---
+
+What data it loads at startup
+
+From artifacts/: voting ensemble + preprocessors + meta-model + τ\* threshold +  
+ SHAP caches
+From data/: preprocessed_data.csv (for raw biomarker values and medians)  
+ From reports/tables/: escalation_table_oof.csv and escalation_table_testset.csv
+From artifacts/: hitl_feedback.db (SQLite clinician interaction log)
