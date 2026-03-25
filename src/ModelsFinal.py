@@ -586,4 +586,61 @@ np.save("../artifacts/y_test.npy", y_holdout_all)
 np.save("../artifacts/train_indices.npy", train_indices)
 np.save("../artifacts/holdout_indices.npy", holdout_indices)
 
+# ---------------------------------------------------------------------
+# Generate holdout ensemble probabilities (models trained on full
+# training set, applied to the strictly held-out 20% split).
+# These are saved so that oof_vs_holdout_analysis.py can compute real
+# holdout metrics rather than relying on any hardcoded fallback.
+# ---------------------------------------------------------------------
+holdout_cat_proba = cat_model.predict_proba(X_holdout_scaled)
+holdout_rf_proba = rf_model.predict_proba(X_holdout_scaled)
+holdout_nn_proba = nn_model.predict_proba(X_holdout_scaled)
+holdout_xgb_proba = xgb_model.predict_proba(X_holdout_scaled)
+holdout_svm_proba = svm_model.predict_proba(X_holdout_scaled)
+holdout_ens_avg = (
+    holdout_cat_proba + holdout_rf_proba + holdout_nn_proba
+    + holdout_xgb_proba + holdout_svm_proba
+) / 5.0
+
+# Mirror the same stacking/averaging decision made for OOF
+if stacked_auc > avg_auc:
+    X_holdout_level1 = np.hstack([
+        holdout_cat_proba, holdout_rf_proba, holdout_nn_proba,
+        holdout_xgb_proba, holdout_svm_proba,
+    ])
+    holdout_ens_raw = stacking_meta.predict_proba(X_holdout_level1)
+else:
+    holdout_ens_raw = holdout_ens_avg
+
+# Apply the same best calibrator (fit on OOF, applied to holdout — correct)
+best_cal = joblib.load("../artifacts/calibrator_best.pkl")
+if best_cal is not None:
+    holdout_ens_final = best_cal.predict_proba(holdout_ens_raw)
+    # Renormalize rows to sum to 1 (calibration can break this slightly)
+    row_sums = holdout_ens_final.sum(axis=1, keepdims=True)
+    holdout_ens_final = holdout_ens_final / np.where(row_sums == 0, 1.0, row_sums)
+else:
+    holdout_ens_final = holdout_ens_raw
+
+np.save("../artifacts/holdout_ens_proba.npy", holdout_ens_final)
+np.save("../artifacts/holdout_cat_proba.npy", holdout_cat_proba)
+np.save("../artifacts/holdout_rf_proba.npy", holdout_rf_proba)
+np.save("../artifacts/holdout_nn_proba.npy", holdout_nn_proba)
+np.save("../artifacts/holdout_xgb_proba.npy", holdout_xgb_proba)
+np.save("../artifacts/holdout_svm_proba.npy", holdout_svm_proba)
+
+holdout_acc = float(accuracy_score(y_holdout_all, np.argmax(holdout_ens_final, axis=1)))
+holdout_auc = float(multiclass_auc(y_holdout_all, holdout_ens_final))
+print(f"Holdout set: accuracy={holdout_acc:.4f}  AUC={holdout_auc:.4f}  (n={y_holdout_all.shape[0]})")
+
+holdout_summary = {
+    "holdout_accuracy": holdout_acc,
+    "holdout_auc": holdout_auc,
+    "holdout_n": int(y_holdout_all.shape[0]),
+    "ensemble_method": "stacked" if stacked_auc > avg_auc else "averaged",
+    "calibration_method": best_calibration_method,
+}
+with open("../artifacts/holdout_summary.json", "w", encoding="utf-8") as f:
+    json.dump(holdout_summary, f, indent=2)
+
 print("Saved models, preprocessors, OOF artifacts, calibration artifacts, and strict holdout split artifacts.")

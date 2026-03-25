@@ -146,11 +146,11 @@ def run_analysis():
         print(f"Holdout   : {len(y_holdout):>5} samples  |  accuracy = {acc_holdout:.4f} ({acc_holdout*100:.1f}%)")
         print(f"Gap       : {(acc_holdout - acc_oof)*100:+.1f} percentage points")
     else:
-        # We know holdout accuracy from previously computed stats
-        acc_holdout = 0.922
-        pred_holdout = None
-        print(f"Holdout   : {len(y_holdout):>5} samples  |  accuracy = {acc_holdout:.4f} (from prior run)")
-        print(f"Gap       : {(acc_holdout - acc_oof)*100:+.1f} percentage points")
+        raise FileNotFoundError(
+            "Holdout ensemble probabilities not found. "
+            "Expected one of: holdout_ens_proba.npy, test_ens_proba.npy in artifacts/.\n"
+            "Re-run ModelsFinal.py to generate them."
+        )
 
     # ── Class distribution comparison ─────────────────────────────────
     print("\n--- Class Distribution ---")
