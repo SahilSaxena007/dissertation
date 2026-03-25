@@ -176,17 +176,17 @@ def run_analysis():
         f_obs=[int((y_holdout == i).sum()) for i in range(3)],
         f_exp=[len(y_holdout) * (y_oof == i).mean() for i in range(3)],
     )
-    print(f"\n  Chi-squared test (holdout vs OOF distribution): χ²={chi2:.3f}, p={p_chi2:.4f}")
+    print(f"\n  Chi-squared test (holdout vs OOF distribution): chi2={chi2:.3f}, p={p_chi2:.4f}")
     if p_chi2 < 0.05:
-        print("  → Class distributions differ significantly (p<0.05) — this likely contributes to the gap.")
+        print("  -> Class distributions differ significantly (p<0.05) — this likely contributes to the gap.")
     else:
-        print("  → Class distributions are statistically similar (p≥0.05).")
+        print("  -> Class distributions are statistically similar (p>=0.05).")
 
     # ── MCI fraction (hardest class) ──────────────────────────────────
     mci_oof = _mci_fraction(y_oof)
     mci_hold = _mci_fraction(y_holdout)
-    print(f"\n  MCI fraction  OOF={mci_oof:.3f}  Holdout={mci_hold:.3f}  Δ={mci_hold - mci_oof:+.3f}")
-    print("  (MCI is the hardest class — lower fraction in holdout → easier holdout)")
+    print(f"\n  MCI fraction  OOF={mci_oof:.3f}  Holdout={mci_hold:.3f}  delta=={mci_hold - mci_oof:+.3f}")
+    print("  (MCI is the hardest class — lower fraction in holdout -> easier holdout)")
 
     # ── Per-class accuracy comparison ─────────────────────────────────
     print("\n--- Per-Class Accuracy ---")
@@ -242,7 +242,7 @@ def run_analysis():
     ci_lo = acc_holdout - 1.96 * se_hold
     ci_hi = acc_holdout + 1.96 * se_hold
     print(f"\n--- Small-Sample Variance ---")
-    print(f"  Holdout n={n_hold}  →  95% CI for holdout accuracy: [{ci_lo:.3f}, {ci_hi:.3f}]")
+    print(f"  Holdout n={n_hold}  ->  95% CI for holdout accuracy: [{ci_lo:.3f}, {ci_hi:.3f}]")
     print(f"  OOF accuracy {acc_oof:.3f} {'is within' if ci_lo <= acc_oof <= ci_hi else 'is outside'} "
           f"the 95% CI of holdout accuracy.")
 
@@ -250,10 +250,10 @@ def run_analysis():
     se_oof = np.sqrt(acc_oof * (1 - acc_oof) / n_oof)
     ci_lo_oof = acc_oof - 1.96 * se_oof
     ci_hi_oof = acc_oof + 1.96 * se_oof
-    print(f"  OOF n={n_oof}  →  95% CI for OOF accuracy: [{ci_lo_oof:.3f}, {ci_hi_oof:.3f}]")
+    print(f"  OOF n={n_oof}  ->  95% CI for OOF accuracy: [{ci_lo_oof:.3f}, {ci_hi_oof:.3f}]")
 
     overlap = ci_lo_oof <= ci_hi and ci_lo <= ci_hi_oof
-    print(f"  95% CIs {'overlap' if overlap else 'do NOT overlap'} → gap is "
+    print(f"  95% CIs {'overlap' if overlap else 'do NOT overlap'} -> gap is "
           f"{'possibly explained by sampling variance' if overlap else 'statistically significant beyond sampling variance'}.")
 
     # ── Summary findings ──────────────────────────────────────────────
@@ -267,7 +267,7 @@ def run_analysis():
         )
     if p_chi2 < 0.05:
         causes.append(
-            f"Class distributions differ significantly (χ²={chi2:.2f}, p={p_chi2:.4f}), "
+            f"Class distributions differ significantly (chi^2={chi2:.2f}, p={p_chi2:.4f}), "
             "suggesting the holdout split is not representative of the full training distribution."
         )
     if not overlap:
