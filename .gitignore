@@ -214,3 +214,10 @@ __marimo__/
 Outputs/
 reports/
 artifacts/
+
+# Personal/private folders
+research papers/
+dissertation_report/
+tests/
+project requirements/
+scripts/
