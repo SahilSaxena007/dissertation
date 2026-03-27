@@ -1,5 +1,5 @@
 """
-Component 1️⃣ 2️⃣: Overall and per-class performance metrics.
+Components 1/2: Overall and per-class performance metrics.
 """
 
 import numpy as np
@@ -44,34 +44,15 @@ def expected_calibration_error(y_true, y_prob, n_bins=15):
 
 def compute_classification_metrics(y_true, y_pred, y_prob, class_names):
     """
-    Compute overall metrics: accuracy, precision, recall, F1, AUC, Brier score, log-loss.
-    
-    Parameters:
-    ----------
-    y_true : array-like
-        True class labels (numeric 0..C-1).
-    y_pred : array-like
-        Predicted class labels.
-    y_prob : array-like, shape (n_samples, n_classes)
-        Predicted probabilities from the model.
-    class_names : list of str
-        Ordered names of classes, e.g. ["SCD", "MCI", "AD"].
-
-    Returns
-    -------
-    overall_metrics : dict
-        Aggregate metrics (accuracy, macro_f1, weighted_f1, macro_auc, brier, logloss).
-    per_class_df : pd.DataFrame
-        DataFrame of per-class metrics (precision, recall, F1, AUC per class).
+    Returns overall metrics dict (accuracy, F1, AUC, ECE, etc.)
+    and per-class DataFrame.
     """
-
-    # --- Sanity check ---
     n_classes = len(class_names)
     y_true = np.array(y_true)
     y_pred = np.array(y_pred)
     y_prob = np.array(y_prob)
 
-    # --- Binarize ground truth for multiclass AUC ---
+    # binarize for multiclass AUC
     y_true_bin = label_binarize(y_true, classes=list(range(n_classes)))
 
     # --- Overall metrics ---
@@ -115,25 +96,7 @@ def compute_classification_metrics(y_true, y_pred, y_prob, class_names):
 
 
 def per_class_metrics_table(y_true, y_pred, y_prob, class_names):
-    """
-    Compute per-class precision, recall, F1, and AUC for each diagnostic stage.
-
-    Parameters
-    ----------
-    y_true : array-like
-        True class labels.
-    y_pred : array-like
-        Predicted class labels.
-    y_prob : array-like
-        Predicted probabilities (n_samples, n_classes).
-    class_names : list of str
-        Ordered list of class names (e.g., ["SCD", "MCI", "AD"]).
-
-    Returns
-    -------
-    pd.DataFrame
-        Columns: ["Class", "Precision", "Recall", "F1", "AUC"]
-    """
+    """Returns per-class precision, recall, F1, AUC as a DataFrame."""
 
     n_classes = len(class_names)
     y_true_bin = label_binarize(y_true, classes=list(range(n_classes)))

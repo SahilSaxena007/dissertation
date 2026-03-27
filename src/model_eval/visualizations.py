@@ -1,5 +1,5 @@
 """
-Components 3️⃣ 4️⃣ 5️⃣: Confusion matrix, ROC curves, calibration curves.
+Components 3/4/5: Confusion matrix, ROC curves, calibration curves.
 High-quality diagnostic plots for model audit (Step 1 of HITL pipeline).
 """
 
@@ -11,26 +11,9 @@ from sklearn.preprocessing import label_binarize
 from sklearn.calibration import calibration_curve
 
 
-# ─────────────────────────────────────────────
-# 3️⃣  Confusion Matrix
-# ─────────────────────────────────────────────
+# Confusion Matrix
 def plot_confusion_matrix(y_true, y_pred, class_names, save_path):
-    """
-    Plot confusion matrices (raw counts and normalized percentages side-by-side).
-
-    Parameters
-    ----------
-    y_true, y_pred : array-like
-        True and predicted integer-encoded labels.
-    class_names : list of str
-        Ordered class labels, e.g. ["SCD", "MCI", "AD"].
-    save_path : str
-        Output PNG file path.
-
-    Returns
-    -------
-    matplotlib.figure.Figure
-    """
+    """Side-by-side raw counts and normalized confusion matrices."""
     y_true, y_pred = np.array(y_true), np.array(y_pred)
     n_classes = len(class_names)
 
@@ -64,25 +47,14 @@ def plot_confusion_matrix(y_true, y_pred, class_names, save_path):
 
     plt.tight_layout()
     plt.savefig(save_path, dpi=400, bbox_inches="tight")
-    print(f"✅ Confusion matrix saved → {save_path}")
+    print(f"Confusion matrix saved -> {save_path}")
     plt.close(fig)
     return fig
 
 
-# ─────────────────────────────────────────────
-# 4️⃣  ROC Curves (One-vs-Rest)
-# ─────────────────────────────────────────────
+# ROC Curves (One-vs-Rest)
 def plot_roc_ovr(y_true, y_prob, class_names, save_path):
-    """
-    Plot One-vs-Rest ROC curves for each class and macro-average ROC.
-
-    Parameters
-    ----------
-    y_true : array-like (n_samples,)
-    y_prob : array-like (n_samples, n_classes)
-    class_names : list[str]
-    save_path : str
-    """
+    """Per-class OvR ROC curves with macro-average."""
     y_true, y_prob = np.array(y_true), np.array(y_prob)
     n_classes = len(class_names)
     y_true_bin = label_binarize(y_true, classes=np.arange(n_classes))
@@ -130,25 +102,14 @@ def plot_roc_ovr(y_true, y_prob, class_names, save_path):
 
     plt.tight_layout()
     plt.savefig(save_path, dpi=400, bbox_inches="tight")
-    print(f"✅ ROC curves saved → {save_path}")
+    print(f"ROC curves saved -> {save_path}")
     plt.close(fig)
     return fig
 
 
-# ─────────────────────────────────────────────
-# 5️⃣  Calibration Curves
-# ─────────────────────────────────────────────
+# Calibration Curves
 def plot_calibration_curve(y_true, y_prob, class_names, save_path):
-    """
-    Plot reliability (calibration) curves per class.
-
-    Parameters
-    ----------
-    y_true : array-like (n_samples,)
-    y_prob : array-like (n_samples, n_classes)
-    class_names : list[str]
-    save_path : str
-    """
+    """Reliability (calibration) curves per class."""
     y_true, y_prob = np.array(y_true), np.array(y_prob)
     n_classes = len(class_names)
     y_true_bin = label_binarize(y_true, classes=np.arange(n_classes))
@@ -186,6 +147,6 @@ def plot_calibration_curve(y_true, y_prob, class_names, save_path):
 
     plt.tight_layout(rect=[0.05, 0.05, 1, 0.95])
     plt.savefig(save_path, dpi=400, bbox_inches="tight")
-    print(f"✅ Calibration curves saved → {save_path}")
+    print(f"Calibration curves saved -> {save_path}")
     plt.close(fig)
     return fig

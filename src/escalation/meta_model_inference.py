@@ -65,7 +65,7 @@ def main():
     artifacts_dir = os.path.join("..", "artifacts")
 
     # 1) Load base ensemble models
-    print("📦 Loading base ensemble models (voting_ensemble.pkl) …")
+    print("Loading base ensemble models (voting_ensemble.pkl)...")
     models = joblib.load(os.path.join(artifacts_dir, "voting_ensemble.pkl"))
 
     # 2) Load meta-model and best threshold
@@ -76,7 +76,7 @@ def main():
             "Run `python .\\escalation\\step2_train_meta_model.py` first."
         )
     meta_model = joblib.load(meta_model_path)
-    print("✅ Loaded Step 2 meta-model.")
+    print("Loaded Step 2 meta-model.")
 
     best_thresh_path = os.path.join(artifacts_dir, "step3_best_threshold.json")
     if not os.path.exists(best_thresh_path):
@@ -88,10 +88,10 @@ def main():
     with open(best_thresh_path, "r", encoding="utf-8") as f:
         best_info = json.load(f)
     tau_star = float(best_info["best_threshold"])
-    print(f"✅ Loaded Step 3 best threshold τ* = {tau_star:.3f}")
+    print(f"Loaded Step 3 best threshold tau* = {tau_star:.3f}")
 
     # 3) Load test data
-    print("\n📂 Loading X_test / y_test …")
+    print("\nLoading X_test / y_test...")
     X_test = np.load(os.path.join(artifacts_dir, "X_test.npy"))
     y_test = np.load(os.path.join(artifacts_dir, "y_test.npy"))
 
@@ -100,7 +100,7 @@ def main():
 
     x = X_test[sample_id]
     y_true = int(y_test[sample_id])
-    print(f"\n🧪 Evaluating sample_id={sample_id} (true label = {CLASS_NAMES[y_true]})")
+    print(f"\nEvaluating sample_id={sample_id} (true label = {CLASS_NAMES[y_true]})")
     print("   Raw features:", x)
 
     # 4) Run existing Step 2 escalation engine to compute reliability signals
@@ -112,7 +112,7 @@ def main():
         y_true=y_true,
     )
 
-    print("\n📌 Step 2 (rule-based) result:")
+    print("\nStep 2 (rule-based) result:")
     pprint(row)
 
     # 5) Build feature vector for meta-model and compute review_risk_score
@@ -124,7 +124,7 @@ def main():
     policy_decision = "ESCALATE to clinician" if escalate else "AI-AUTONOMOUS"
 
     # 7) Print combined decision summary
-    print("\n🧠 HITL Policy Decision (Step 2 + Step 3):")
+    print("\nHITL Policy Decision (Step 2 + Step 3):")
     print(f"  • Ensemble prediction : {row['pred_ens_name']} (index {row['pred_ens']})")
     print(f"  • True label          : {row['true_label_name']} (index {row['true_label']})")
     print(f"  • review_risk_score   : {risk_score:.3f}")

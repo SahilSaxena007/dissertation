@@ -1,5 +1,5 @@
 """
-Component 1️⃣0️⃣: Bias diagnostics and fairness analysis.
+Component 10: Bias diagnostics and fairness analysis.
 Includes demographic parity, group fairness metrics, and disparate impact detection.
 """
 

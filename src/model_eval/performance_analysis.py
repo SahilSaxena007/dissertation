@@ -64,7 +64,7 @@ def analyze_model_performance(y_true, y_pred, y_prob, model_name, class_names, o
         save_path=f"{fig_dir}/calibration_{model_name}.png"
     )
     
-    # 4️⃣ Export error taxonomy (for later HITL analysis)
+    # Export error taxonomy (for later HITL analysis)
     table_dir = os.path.join(output_dir, "tables")
     os.makedirs(table_dir, exist_ok=True)
     
@@ -77,7 +77,7 @@ def analyze_model_performance(y_true, y_pred, y_prob, model_name, class_names, o
         save_path=f"{table_dir}/error_taxonomy_{model_name}.csv"
     )
     
-    # 5️⃣ Save detailed metrics tables
+    # Save detailed metrics tables
     save_metrics_tables(
         model_name=model_name,
         overall_dict=metrics,
@@ -85,7 +85,7 @@ def analyze_model_performance(y_true, y_pred, y_prob, model_name, class_names, o
         output_dir=table_dir
     )
     
-    # 6️⃣ Construct a compact summary for console + dissertation appendix
+    # Construct a compact summary for console + dissertation appendix
     summary_dict = {
         "model": model_name,
         "accuracy": metrics["accuracy"],
@@ -96,7 +96,7 @@ def analyze_model_performance(y_true, y_pred, y_prob, model_name, class_names, o
         "auc_ci": auc_ci
     }
 
-    print(f"\n✅ Finished analysis for {model_name}")
+    print(f"\nFinished analysis for {model_name}")
     print(f"Accuracy: {summary_dict['accuracy']:.3f} | Macro-F1: {summary_dict['macro_f1']:.3f} "
           f"(±{(f1_ci['ci_high']-f1_ci['ci_low'])/2:.3f}) | AUC: {summary_dict['macro_auc']:.3f}")
 
@@ -426,7 +426,7 @@ def export_error_taxonomy(y_true, y_pred, y_prob, class_names, model_name, save_
     df["id"] = np.arange(len(df))
 
     df.to_csv(save_path, index=False)
-    print(f"🧾 Saved error taxonomy for {model_name} → {save_path}")
+    print(f"Saved error taxonomy for {model_name} -> {save_path}")
     
     
 def save_metrics_tables(model_name, overall_dict, per_class_df, output_dir):
@@ -459,6 +459,6 @@ def save_metrics_tables(model_name, overall_dict, per_class_df, output_dir):
     perclass_path = os.path.join(output_dir, f"performance_perclass_{model_name}.csv")
     per_class.to_csv(perclass_path, index=False)
 
-    print(f"💾 Saved metrics tables for {model_name}:")
+    print(f"Saved metrics tables for {model_name}:")
     print(f"   Overall → {overall_path}")
     print(f"   Per-class → {perclass_path}")

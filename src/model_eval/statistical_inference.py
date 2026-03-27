@@ -1,5 +1,5 @@
 """
-Component 6️⃣: Bootstrap confidence intervals for metrics.
+Component 6: Bootstrap confidence intervals for metrics.
 Adds statistical rigor by quantifying robustness of metrics via resampling.
 """
 
@@ -25,36 +25,8 @@ def bootstrap_confidence_intervals(
     random_state=42,
 ):
     """
-    Compute bootstrap confidence intervals for key metrics.
-    
-    Resamples the test set with replacement n_bootstrap times and computes
-    metrics for each resample. Returns percentile-based CIs.
-    
-    Parameters
-    ----------
-    y_true : array-like
-        True class labels (numeric 0..C-1).
-    y_pred : array-like
-        Predicted class labels.
-    y_prob : array-like, shape (n_samples, n_classes)
-        Predicted probabilities.
-    class_names : list of str
-        Class names (e.g., ["SCD", "MCI", "AD"]).
-    n_bootstrap : int, default=1000
-        Number of bootstrap resamples.
-    ci : int, default=95
-        Confidence interval level (e.g., 95 for 95% CI).
-    random_state : int, default=42
-        Random seed for reproducibility.
-    
-    Returns
-    -------
-    ci_results : dict
-        Keys: metric names (e.g., 'accuracy', 'macro_f1', 'SCD_auc')
-        Values: dict with keys 'mean', 'ci_low', 'ci_high', 'std'
-    bootstrap_samples : dict
-        Keys: metric names
-        Values: array of bootstrap metric values (length n_bootstrap)
+    Percentile-based bootstrap CIs for accuracy, F1, AUC and per-class AUC.
+    Returns (ci_results dict, bootstrap_samples dict).
     """
     
     np.random.seed(random_state)

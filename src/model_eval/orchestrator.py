@@ -1,5 +1,5 @@
 """
-🎯 MASTER ORCHESTRATOR: Chains all 11 components for complete model evaluation.
+Chains all 11 components for complete model evaluation.
 Entry point for comprehensive evaluation pipeline.
 """
 
@@ -35,7 +35,7 @@ def analyze_model_performance(
     demographic_col=None,
 ):
     """
-    🎯 MASTER ORCHESTRATOR: The full evaluation pipeline.
+    Run the full 11-component evaluation pipeline for a single model.
     """
 
     # ----------------------------------------------------------------------
@@ -67,7 +67,7 @@ def analyze_model_performance(
     start_time = datetime.now()
 
     print("\n" + "="*80)
-    print(f"🎯 MASTER ORCHESTRATOR: {model_name}")
+    print(f"Evaluating: {model_name}")
     print("="*80)
     print(f"Test samples: {n_samples}")
     print(f"Classes: {class_names}")
@@ -78,7 +78,7 @@ def analyze_model_performance(
     # ----------------------------------------------------------------------
     # 1 / 2: Classification metrics
     # ----------------------------------------------------------------------
-    print("[1️⃣ 2️⃣] Computing classification metrics...")
+    print("[1/2] Computing classification metrics...")
 
     overall_metrics, per_class_df = metrics.compute_classification_metrics(
         y_true, y_pred, y_prob, class_names
@@ -86,34 +86,34 @@ def analyze_model_performance(
     results["overall_metrics"] = overall_metrics
     results["per_class_metrics"] = per_class_df
 
-    print(f"   ✅ Accuracy: {overall_metrics['accuracy']:.4f}")
-    print(f"   ✅ Macro F1: {overall_metrics['macro_f1']:.4f}")
-    print(f"   ✅ Weighted F1: {overall_metrics['weighted_f1']:.4f}")
+    print(f"   Accuracy: {overall_metrics['accuracy']:.4f}")
+    print(f"   Macro F1: {overall_metrics['macro_f1']:.4f}")
+    print(f"   Weighted F1: {overall_metrics['weighted_f1']:.4f}")
 
     # ----------------------------------------------------------------------
     # 3 / 4 / 5: Visualizations
     # ----------------------------------------------------------------------
-    print("\n[3️⃣ 4️⃣ 5️⃣] Generating visualizations...")
+    print("\n[3/4/5] Generating visualizations...")
 
     try:
         cm_path = os.path.join(output_dir, "figures", f"confusion_matrix_{model_name.lower()}.png")
         visualizations.plot_confusion_matrix(y_true, y_pred, class_names, cm_path)
-        print(f"   ✅ Confusion matrix: {cm_path}")
+        print(f"   Confusion matrix: {cm_path}")
 
         roc_path = os.path.join(output_dir, "figures", f"roc_curves_{model_name.lower()}.png")
         visualizations.plot_roc_ovr(y_true, y_prob, class_names, roc_path)
-        print(f"   ✅ ROC curves: {roc_path}")
+        print(f"   ROC curves: {roc_path}")
 
         cal_path = os.path.join(output_dir, "figures", f"calibration_curves_{model_name.lower()}.png")
         visualizations.plot_calibration_curve(y_true, y_prob, class_names, cal_path)
-        print(f"   ✅ Calibration curves: {cal_path}")
+        print(f"   Calibration curves: {cal_path}")
     except Exception as e:
-        print(f"   ⚠️ Visualization warning: {e}")
+        print(f"   Visualization warning: {e}")
 
     # ----------------------------------------------------------------------
     # 8: Uncertainty
     # ----------------------------------------------------------------------
-    print("\n[8️⃣] Computing uncertainty signals...")
+    print("\n[8] Computing uncertainty signals...")
 
     uncertainty_df = uncertainty.compute_uncertainty_signals(y_prob)
     unc_summary = uncertainty.uncertainty_summary_stats(uncertainty_df)
@@ -121,14 +121,14 @@ def analyze_model_performance(
     results["uncertainty"] = uncertainty_df
     results["uncertainty_summary"] = unc_summary
 
-    print(f"   ✅ Entropy (mean): {unc_summary['entropy']['mean']:.4f}")
-    print(f"   ✅ Margin  (mean): {unc_summary['margin']['mean']:.4f}")
-    print(f"   ✅ MaxProb (mean): {unc_summary['max_prob']['mean']:.4f}")
+    print(f"   Entropy (mean): {unc_summary['entropy']['mean']:.4f}")
+    print(f"   Margin  (mean): {unc_summary['margin']['mean']:.4f}")
+    print(f"   MaxProb (mean): {unc_summary['max_prob']['mean']:.4f}")
 
     # ----------------------------------------------------------------------
     # 6: Bootstrap Confidence Intervals
     # ----------------------------------------------------------------------
-    print("\n[6️⃣] Computing bootstrap confidence intervals...")
+    print("\n[6] Computing bootstrap confidence intervals...")
 
     try:
         ci_results, boot = statistical_inference.bootstrap_confidence_intervals(
@@ -143,19 +143,19 @@ def analyze_model_performance(
         ci_path = os.path.join(output_dir, "tables", f"bootstrap_ci_{model_name.lower()}.csv")
         ci_df.to_csv(ci_path, index=False)
 
-        print(f"   ✅ CI table saved → {ci_path}")
+        print(f"   CI table saved -> {ci_path}")
 
         if "accuracy" in ci_results:
             acc_ci = ci_results["accuracy"]
-            print(f"   ✅ Accuracy CI: [{acc_ci['ci_low']:.4f}, {acc_ci['ci_high']:.4f}]")
+            print(f"   Accuracy CI: [{acc_ci['ci_low']:.4f}, {acc_ci['ci_high']:.4f}]")
 
     except Exception as e:
-        print(f"   ⚠️ Bootstrap warning: {e}")
+        print(f"   Bootstrap warning: {e}")
 
     # ----------------------------------------------------------------------
     # 7: Error Taxonomy
     # ----------------------------------------------------------------------
-    print("\n[7️⃣] Exporting error taxonomy...")
+    print("\n[7] Exporting error taxonomy...")
 
     try:
         error_df = error_taxonomy.export_error_taxonomy(
@@ -177,23 +177,23 @@ def analyze_model_performance(
         hitl_path = os.path.join(output_dir, "tables", f"hitl_review_{model_name.lower()}.csv")
         top_unc.to_csv(hitl_path, index=False)
 
-        print(f"   ✅ Error taxonomy: {len(error_df)} samples")
-        print(f"   ✅ Error rate: {err_summary['error_rate']:.2%}")
-        print(f"   ✅ HITL review: {hitl_path}")
+        print(f"   Error taxonomy: {len(error_df)} samples")
+        print(f"   Error rate: {err_summary['error_rate']:.2%}")
+        print(f"   HITL review: {hitl_path}")
 
     except Exception as e:
-        print(f"   ❌ ERROR in error taxonomy: {e}")
+        print(f"   ERROR in error taxonomy: {e}")
         raise
 
     # ----------------------------------------------------------------------
     # 9: SHAP Explainability
     # ----------------------------------------------------------------------
-    print("\n[9️⃣] Computing SHAP explanations...")
+    print("\n[9] Computing SHAP explanations...")
 
     try:
-        # Only CatBoost has stable SHAP in your environment
+        # Only CatBoost has stable SHAP in this environment
         if model_name != "CatBoost":
-            print("   ⚠️ SHAP disabled for non-CatBoost models (skipping)")
+            print("   SHAP disabled for non-CatBoost models (skipping)")
         else:
             explainer, shap_values, X_sample = explainability.compute_shap_values(
                 model, X_test, class_names,
@@ -206,21 +206,21 @@ def analyze_model_performance(
                 explainer, shap_values, X_sample,
                 feature_names, shap_path, plot_type="bar"
             )
-            print(f"   ✅ SHAP summary saved → {shap_path}")
+            print(f"   SHAP summary saved -> {shap_path}")
 
             imp_df = explainability.feature_importance_ranking(shap_values, feature_names, top_n=15)
             results["feature_importance"] = imp_df
             imp_path = os.path.join(output_dir, "tables", f"feature_importance_{model_name.lower()}.csv")
             imp_df.to_csv(imp_path, index=False)
-            print(f"   ✅ Feature importance saved → {imp_path}")
+            print(f"   Feature importance saved -> {imp_path}")
 
     except Exception as e:
-        print(f"   ⚠️ SHAP warning: {e}")
+        print(f"   SHAP warning: {e}")
 
     # ----------------------------------------------------------------------
     # 10: Bias Diagnostics
     # ----------------------------------------------------------------------
-    print("\n[1️⃣0️⃣] Running bias diagnostics...")
+    print("\n[10] Running bias diagnostics...")
 
     try:
         if demographic_col and metadata_df is not None and demographic_col in metadata_df.columns:
@@ -233,19 +233,19 @@ def analyze_model_performance(
             impact_df, di_ratio = bias_diagnostics.disparate_impact(error_df, demographic_col)
             results["disparate_impact_ratio"] = di_ratio
 
-            print(f"   ✅ Demographic parity saved → {parity_path}")
-            print(f"   ✅ Disparate impact ratio: {di_ratio:.4f}")
+            print(f"   Demographic parity saved -> {parity_path}")
+            print(f"   Disparate impact ratio: {di_ratio:.4f}")
 
         else:
-            print(f"   ⚠️ Demographic column '{demographic_col}' unavailable — skipping bias tests.")
+            print(f"   Demographic column '{demographic_col}' unavailable -- skipping bias tests.")
 
     except Exception as e:
-        print(f"   ⚠️ Bias warning: {e}")
+        print(f"   Bias warning: {e}")
 
     # ----------------------------------------------------------------------
     # 11: Reporting
     # ----------------------------------------------------------------------
-    print("\n[1️⃣1️⃣] Generating reports...")
+    print("\n[11] Generating reports...")
 
     try:
         reporting.save_metrics_tables(model_name, overall_metrics, per_class_df, output_dir)
@@ -253,7 +253,7 @@ def analyze_model_performance(
         reporting.generate_json_summary(results, model_name, output_dir)
         reporting.print_summary_table(results, model_name)
     except Exception as e:
-        print(f"   ⚠️ Reporting warning: {e}")
+        print(f"   Reporting warning: {e}")
 
     # ----------------------------------------------------------------------
     # FINAL SUMMARY
@@ -261,7 +261,7 @@ def analyze_model_performance(
     elapsed = (datetime.now() - start_time).total_seconds()
 
     print("\n" + "="*80)
-    print(f"✅ ORCHESTRATOR COMPLETED for {model_name} in {elapsed:.2f}s")
+    print(f"Evaluation complete for {model_name} in {elapsed:.2f}s")
     print("="*80)
 
     # Return compact summary dictionary

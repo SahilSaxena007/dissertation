@@ -30,10 +30,10 @@ def main():
 
     artifacts_dir = os.path.join("..", "artifacts")
 
-    print("📦 Loading ensemble models …")
+    print("Loading ensemble models...")
     models = joblib.load(os.path.join(artifacts_dir, "voting_ensemble.pkl"))
 
-    print("📂 Loading X_test / y_test …")
+    print("Loading X_test / y_test...")
     X_test = np.load(os.path.join(artifacts_dir, "X_test.npy"))
     y_test = np.load(os.path.join(artifacts_dir, "y_test.npy"))
 
@@ -43,7 +43,7 @@ def main():
     x = X_test[sample_id]
     y = int(y_test[sample_id])
 
-    print(f"\n🧪 Running Step 2 for sample_id={sample_id} (true label = {CLASS_NAMES[y]}) …")
+    print(f"\nRunning Step 2 for sample_id={sample_id} (true label = {CLASS_NAMES[y]})...")
     
     print("Loaded x:", x)
 
@@ -55,10 +55,10 @@ def main():
         y_true=y,
     )
 
-    print("\n📌 Result:")
+    print("\nResult:")
     pprint(result)
 
-    print("\n🧠 Interpretation:")
+    print("\nInterpretation:")
     print(f"  • Model prediction       : {result['pred_ens_name']} (index {result['pred_ens']})")
     print(f"  • Escalation level       : {result['escalation_level']}")
     print(f"  • Reasons                : {result['escalation_reasons'] or 'none (AI-Autonomous)'}")

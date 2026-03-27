@@ -1,5 +1,5 @@
 """
-Component 9️⃣: SHAP-based explainability analysis.
+Component 9: SHAP-based explainability analysis.
 Provides global feature importance, sample-level explanations, and dependency plots.
 """
 
@@ -14,30 +14,8 @@ warnings.filterwarnings('ignore', category=UserWarning)
 
 def compute_shap_values(model, X, class_names, model_type='tree', max_samples=None):
     """
-    Compute SHAP values for model explanations.
-    
-    Parameters
-    ----------
-    model : sklearn model or similar
-        Trained model with predict/predict_proba methods.
-    X : array-like, shape (n_samples, n_features)
-        Feature matrix for explanation.
-    class_names : list of str
-        Class names (e.g., ["SCD", "MCI", "AD"]).
-    model_type : str, default='tree'
-        Type of model: 'tree' (CatBoost, XGBoost, RandomForest) or 'kernel' (any model).
-    max_samples : int, optional
-        Max samples to use for SHAP computation (for speed). Default: use all.
-    
-    Returns
-    -------
-    explainer : shap.Explainer
-        SHAP explainer object.
-    shap_values : array-like
-        SHAP values (n_samples, n_features) for binary/regression
-        or (n_samples, n_features, n_classes) for multiclass.
-    X_sample : array-like
-        Feature matrix used (may be subsampled).
+    Computes SHAP values using TreeExplainer or KernelExplainer.
+    Returns (explainer, shap_values, X_sample) — X_sample may be subsampled.
     """
     
     X = np.array(X)
@@ -69,10 +47,10 @@ def compute_shap_values(model, X, class_names, model_type='tree', max_samples=No
         # Compute SHAP values
         shap_values = explainer.shap_values(X_sample)
         
-        print(f"  ✅ SHAP computation successful")
-        
+        print(f"  SHAP computation successful")
+
     except Exception as e:
-        print(f"  ⚠️  SHAP computation failed: {e}")
+        print(f"  SHAP computation failed: {e}")
         explainer = None
         shap_values = None
     
@@ -80,52 +58,20 @@ def compute_shap_values(model, X, class_names, model_type='tree', max_samples=No
 
 
 def plot_shap_summary(explainer, shap_values, X_sample, feature_names, save_path, plot_type='bar'):
-    """
-    Plot SHAP summary (feature importance).
-    
-    Parameters
-    ----------
-    explainer : shap.Explainer
-        SHAP explainer object.
-    shap_values : array-like
-        SHAP values. Can be:
-        - (n_samples, n_features) for binary
-        - (n_samples, n_features, n_classes) for multiclass
-        - list of arrays for some models
-    X_sample : array-like
-        Feature matrix used for SHAP computation.
-    feature_names : list of str
-        Feature names.
-    save_path : str
-        Path to save figure.
-    plot_type : str, default='bar'
-        'bar' (feature importance) or 'beeswarm' (feature impact).
-    
-    Returns
-    -------
-    fig : matplotlib.figure.Figure
-        The figure object.
-    """
-    
+    """Bar chart of mean |SHAP| per feature (top 20). Handles list/2D/3D shap_values shapes."""
     try:
         fig, ax = plt.subplots(figsize=(10, 6))
-        
-        # ─────────────────────────────────────────
-        # Handle different SHAP value shapes
-        # ─────────────────────────────────────────
+
+        # average across classes for multiclass outputs
         if isinstance(shap_values, list):
-            # List of arrays (one per class for multiclass)
             mean_abs_shap = np.mean([np.abs(sv).mean(axis=0) for sv in shap_values], axis=0)
         elif len(shap_values.shape) == 3:
-            # (n_samples, n_features, n_classes) → average across classes
             mean_abs_shap = np.abs(shap_values).mean(axis=(0, 2))
         else:
-            # (n_samples, n_features) → standard case
             mean_abs_shap = np.abs(shap_values).mean(axis=0)
-        
+
         if plot_type == 'bar':
-            # Sort by importance
-            indices = np.argsort(mean_abs_shap)[::-1][:20]  # Top 20
+            indices = np.argsort(mean_abs_shap)[::-1][:20]
             
             ax.barh(range(len(indices)), mean_abs_shap[indices], color='steelblue')
             ax.set_yticks(range(len(indices)))
@@ -135,7 +81,6 @@ def plot_shap_summary(explainer, shap_values, X_sample, feature_names, save_path
             ax.invert_yaxis()
         
         elif plot_type == 'beeswarm':
-            # Fallback to bar if beeswarm issues
             indices = np.argsort(mean_abs_shap)[::-1][:20]
             ax.barh(range(len(indices)), mean_abs_shap[indices], color='steelblue')
             ax.set_yticks(range(len(indices)))
@@ -146,54 +91,27 @@ def plot_shap_summary(explainer, shap_values, X_sample, feature_names, save_path
         
         plt.tight_layout()
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        print(f"✅ SHAP summary saved to {save_path}")
+        print(f"SHAP summary saved to {save_path}")
         plt.close()
-        
+
         return fig
-        
+
     except Exception as e:
-        print(f"⚠️  SHAP summary plot failed: {e}")
+        print(f"SHAP summary plot failed: {e}")
         return None
 
 
 def plot_shap_force(explainer, shap_values, X_sample, sample_index, feature_names, save_path):
-    """
-    Plot SHAP force plot for a single sample (individual explanation).
-    
-    Parameters
-    ----------
-    explainer : shap.Explainer
-        SHAP explainer object.
-    shap_values : array-like
-        SHAP values (can be multiclass).
-    X_sample : array-like
-        Feature matrix.
-    sample_index : int
-        Index of sample to explain.
-    feature_names : list of str
-        Feature names.
-    save_path : str
-        Path to save figure.
-    
-    Returns
-    -------
-    fig : matplotlib.figure.Figure
-        The figure object.
-    """
-    
+    """Bar chart showing per-feature SHAP contributions for a single sample."""
     try:
-        # ─────────────────────────────────────────
-        # Handle different SHAP value shapes
-        # ─────────────────────────────────────────
         if isinstance(shap_values, list):
-            sv = shap_values[0]  # Use first class
+            sv = shap_values[0]
         elif len(shap_values.shape) == 3:
-            # (n_samples, n_features, n_classes) → use first class
             sv = shap_values[:, :, 0]
         else:
             sv = shap_values
-        
-        # Create force plot (manual version for compatibility)
+
+        # manual force-style plot for compatibility
         sample_shap = sv[sample_index]
         sample_features = X_sample[sample_index]
         
@@ -221,56 +139,28 @@ def plot_shap_force(explainer, shap_values, X_sample, sample_index, feature_name
         
         plt.tight_layout()
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        print(f"✅ SHAP force plot saved to {save_path}")
+        print(f"SHAP force plot saved to {save_path}")
         plt.close()
-        
+
         return fig
-        
+
     except Exception as e:
-        print(f"⚠️  SHAP force plot failed: {e}")
+        print(f"SHAP force plot failed: {e}")
         return None
 
 
 def plot_shap_dependence(explainer, shap_values, X_sample, feature_idx, feature_names, save_path):
-    """
-    Plot SHAP dependence plot (feature interaction).
-    
-    Parameters
-    ----------
-    explainer : shap.Explainer
-        SHAP explainer object.
-    shap_values : array-like
-        SHAP values (can be multiclass).
-    X_sample : array-like
-        Feature matrix.
-    feature_idx : int
-        Index of feature to analyze.
-    feature_names : list of str
-        Feature names.
-    save_path : str
-        Path to save figure.
-    
-    Returns
-    -------
-    fig : matplotlib.figure.Figure
-        The figure object.
-    """
-    
+    """Scatter plot of feature value vs SHAP value for a single feature."""
     try:
-        # ─────────────────────────────────────────
-        # Handle different SHAP value shapes
-        # ─────────────────────────────────────────
         if isinstance(shap_values, list):
-            sv = shap_values[0]  # Use first class
+            sv = shap_values[0]
         elif len(shap_values.shape) == 3:
-            # (n_samples, n_features, n_classes) → use first class
             sv = shap_values[:, :, 0]
         else:
             sv = shap_values
-        
+
         fig, ax = plt.subplots(figsize=(10, 6))
-        
-        # SHAP dependence: feature value vs SHAP value
+
         feature_vals = X_sample[:, feature_idx]
         shap_vals = sv[:, feature_idx]
         
@@ -282,50 +172,26 @@ def plot_shap_dependence(explainer, shap_values, X_sample, feature_idx, feature_
         
         plt.tight_layout()
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        print(f"✅ SHAP dependence plot saved to {save_path}")
+        print(f"SHAP dependence plot saved to {save_path}")
         plt.close()
-        
+
         return fig
-        
+
     except Exception as e:
-        print(f"⚠️  SHAP dependence plot failed: {e}")
+        print(f"SHAP dependence plot failed: {e}")
         return None
 
 
 def feature_importance_ranking(shap_values, feature_names, top_n=15):
-    """
-    Rank features by mean absolute SHAP value.
-    
-    Parameters
-    ----------
-    shap_values : array-like
-        SHAP values. Can be:
-        - (n_samples, n_features) for binary
-        - (n_samples, n_features, n_classes) for multiclass
-        - list of arrays
-    feature_names : list of str
-        Feature names.
-    top_n : int, default=15
-        Number of top features to return.
-    
-    Returns
-    -------
-    importance_df : pd.DataFrame
-        Columns: ['Rank', 'Feature', 'Mean |SHAP|', 'Relative Importance (%)']
-    """
-    
+    """Returns a DataFrame ranking features by mean |SHAP| value (top_n rows)."""
     try:
-        # Handle different SHAP value shapes
         if isinstance(shap_values, list):
             mean_abs_shap = np.mean([np.abs(sv).mean(axis=0) for sv in shap_values], axis=0)
         elif len(shap_values.shape) == 3:
-            # (n_samples, n_features, n_classes) → average across classes
             mean_abs_shap = np.abs(shap_values).mean(axis=(0, 2))
         else:
-            # (n_samples, n_features) → standard case
             mean_abs_shap = np.abs(shap_values).mean(axis=0)
-        
-        # Sort and rank
+
         indices = np.argsort(mean_abs_shap)[::-1]
         
         mean_abs_shap_sorted = mean_abs_shap[indices]
@@ -343,5 +209,5 @@ def feature_importance_ranking(shap_values, feature_names, top_n=15):
         return importance_df
         
     except Exception as e:
-        print(f"⚠️  Feature importance ranking failed: {e}")
+        print(f"Feature importance ranking failed: {e}")
         return None

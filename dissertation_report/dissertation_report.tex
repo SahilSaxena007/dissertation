@@ -1,0 +1,170 @@
+﻿\documentclass[12pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{siunitx}
+\sisetup{round-mode=places,round-precision=3}
+
+\begin{document}
+\thispagestyle{empty}
+\begin{center}
+    {\LARGE Dissertation Project}
+\end{center}
+\newpage
+
+\section{Results}
+This section reports quantitative findings from implementation outputs in \texttt{reports/tables/}, with emphasis on the Phase 3 evaluation pipeline (\texttt{src/evaluation/}).
+
+\subsection{Core Classification Metrics (\texttt{src/eval/metrics.py})}
+The \texttt{src/eval/metrics.py} module computes the core multiclass performance metrics used as the baseline model-quality summary. These are exported via \texttt{overall\_metrics\_*.csv} and \texttt{per\_class\_metrics\_*.csv}.
+
+For the selected ensemble (\texttt{overall\_metrics\_ensembleselected.csv}), results were:
+\begin{itemize}
+    \item Accuracy: 0.737
+    \item Macro precision: 0.733
+    \item Macro recall: 0.739
+    \item Macro-F1: 0.735
+    \item Weighted-F1: 0.733
+    \item Macro AUC (OvR): 0.904
+    \item Log-loss: 0.553
+    \item Expected Calibration Error (ECE): 0.044
+\end{itemize}
+
+Per-class performance (\texttt{per\_class\_metrics\_ensembleselected.csv}) shows strongest discrimination for AD (AUC: 0.955) and SCD (AUC: 0.938), with MCI as the most difficult class (AUC: 0.818; F1: 0.605). This class-level asymmetry is clinically relevant because the intermediate stage (MCI) is the hardest boundary.
+
+\subsection{Complete \texttt{src/eval/} Pipeline Outputs}
+The full \texttt{src/eval/} stack is orchestrated by \texttt{src/eval/orchestrator.py}, which combines 11 components into one evaluation pass. In this project, it generated model-wise outputs for CatBoost, Random Forest, Neural Net, Ensemble, and EnsembleSelected.
+
+\textbf{1) Metrics (\texttt{metrics.py})}
+\begin{itemize}
+    \item \texttt{reports/tables/overall\_metrics\_*.csv}
+    \item \texttt{reports/tables/per\_class\_metrics\_*.csv}
+\end{itemize}
+
+\textbf{2) Visual diagnostics (\texttt{visualizations.py})}
+\begin{itemize}
+    \item \texttt{reports/figures/confusion\_matrix\_*.png}
+    \item \texttt{reports/figures/roc\_curves\_*.png}
+    \item \texttt{reports/figures/calibration\_curves\_*.png}
+\end{itemize}
+
+\textbf{3) Statistical inference (\texttt{statistical\_inference.py})}
+\begin{itemize}
+    \item \texttt{reports/tables/bootstrap\_ci\_*.csv}
+\end{itemize}
+These tables provide bootstrap means and confidence intervals for overall and per-class metrics, used to quantify stability.
+
+\textbf{4) Uncertainty characterization (\texttt{uncertainty.py})}
+\begin{itemize}
+    \item Exported into consolidated reports/JSON summaries via orchestrator outputs
+\end{itemize}
+Uncertainty signals (entropy, margin, max probability) are used to identify difficult cases and support escalation logic.
+
+\textbf{5) Error taxonomy (\texttt{error\_taxonomy.py})}
+\begin{itemize}
+    \item \texttt{reports/tables/error\_taxonomy\_*.csv}
+    \item \texttt{reports/tables/hitl\_review\_*.csv}
+\end{itemize}
+This gives row-level error records and a shortlist of highest-uncertainty errors for clinician review.
+
+\textbf{6) Explainability (\texttt{explainability.py})}
+\begin{itemize}
+    \item \texttt{reports/figures/shap\_summary\_catboost.png}
+    \item \texttt{reports/tables/feature\_importance\_catboost.csv}
+\end{itemize}
+SHAP is enabled in this environment primarily for CatBoost, providing global feature attribution for interpretability.
+
+\textbf{7) Bias diagnostics (\texttt{bias\_diagnostics.py})}
+\begin{itemize}
+    \item Group fairness outputs when demographic metadata are provided to orchestrator
+\end{itemize}
+This is complemented by the newer dedicated fairness module in \texttt{src/evaluation/fairness\_analysis.py}.
+
+\textbf{8) Consolidated reporting (\texttt{reporting.py})}
+\begin{itemize}
+    \item \texttt{reports/reports/consolidated\_report\_*.csv}
+    \item \texttt{reports/reports/results\_*.json}
+\end{itemize}
+These files aggregate all component outputs for each model and provide audit-ready machine-readable summaries.
+
+\textbf{Interpretation:} the \texttt{src/eval/} folder provides the baseline technical audit layer (model quality, uncertainty, error forensics, explainability, and reporting), while \texttt{src/evaluation/} adds Phase 3 experimental analyses (HITL comparisons, threshold/cost/fairness/agreement/efficiency studies).
+
+\subsection{AI-only vs HITL Comparison}
+From \texttt{statistical\_tests.csv}, AI-only baseline accuracy was 0.737 and HITL accuracy was 0.828 (absolute gain: 0.091). Macro-F1 improved from 0.735 to 0.827 (gain: 0.092).
+
+McNemar's paired test showed a statistically significant difference between AI-only and HITL performance ($\chi^2=36.54$, $p=1.49\times10^{-9}$), with matched odds ratio 22.00 (note: $b=2$, $c=44$).
+
+Bootstrap confidence intervals (\texttt{statistical\_tests.csv}) support this improvement:
+\begin{itemize}
+    \item Accuracy difference (HITL - AI): 95\% CI [0.065, 0.120]
+    \item Macro-F1 difference (HITL - AI): 95\% CI [0.065, 0.121]
+\end{itemize}
+
+From \texttt{hitl\_simulated\_clinician\_experiment.csv}, the active feedback experiment showed the following best performance by clinician accuracy level:
+
+\begin{table}[h]
+\centering
+\caption{Best HITL result by simulated clinician accuracy}
+\begin{tabular}{lccc}
+\toprule
+Clinician accuracy & Best round & Best test accuracy & Gain vs round 0 \\
+\midrule
+0.85 & 1 & 0.784 & +0.052 \\
+0.90 & 4 & 0.802 & +0.069 \\
+0.95 & 5 & 0.776 & +0.043 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Threshold Sensitivity Analysis}
+From \texttt{threshold\_sensitivity\_summary.csv}, the selected threshold was stable at 0.69 across assumed clinician accuracies 0.85--0.95. Review rate remained 0.196, while policy accuracy increased from 0.808 to 0.827 as clinician accuracy increased.
+
+This indicates the threshold choice is robust in the tested range and gives a consistent review burden with predictable accuracy gains over AI-only performance.
+
+\subsection{Ablation Study on Escalation Signals}
+From \texttt{ablation\_study.csv}, removing \texttt{risk\_2\_margin} produced the largest performance drop (accuracy change: -0.024; AUC change: -0.0076), suggesting this signal contributes most strongly among tested features.
+
+Some removals had negligible effect (e.g., \texttt{risk\_1\_inv\_conf}), while removing \texttt{risk\_3\_entropy} slightly increased performance on this split. This suggests partial redundancy among signals and motivates future feature regularization/selection.
+
+\subsection{Cost-Benefit Analysis}
+From \texttt{cost\_analysis.csv}, HITL reduced clinical cost relative to AI-only across tested thresholds and human-accuracy settings. Best observed cost reductions were:
+
+\begin{table}[h]
+\centering
+\caption{Best observed cost reduction by simulated clinician accuracy}
+\begin{tabular}{lccc}
+\toprule
+Clinician accuracy & Threshold & Review rate & Cost reduction \\
+\midrule
+0.85 & 0.50 & 0.448 & 115.0 \\
+0.90 & 0.28 & 0.724 & 137.0 \\
+0.95 & 0.24 & 0.767 & 171.5 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+This supports the claim that HITL can improve clinically weighted utility, not only raw accuracy.
+
+\subsection{Fairness Analysis}
+From \texttt{fairness\_analysis.csv} and \texttt{fairness\_summary.csv}:
+\begin{itemize}
+    \item Overall accuracy: 0.737; overall escalation rate: 0.817.
+    \item Gender disparity: demographic parity diff = 0.009, equalized odds diff = 0.087.
+    \item Age-bin disparity: demographic parity diff = 0.163, equalized odds diff = 0.147.
+\end{itemize}
+
+The age-group disparities are materially larger than gender disparities, indicating age-related fairness risk in the current escalation behavior.
+
+\subsection{Operational Efficiency and AI-Human Agreement}
+From \texttt{efficiency\_summary.csv} and \texttt{agreement\_summary.csv}, currently logged dashboard data are minimal (1 review event): median decision time was 201.47 seconds, agree rate was 1.0, and disagree rate was 0.0.
+
+These early values are not yet statistically stable and should be treated as instrumentation validation rather than final efficiency/agreement conclusions.
+
+\subsection{Uncertainty Quantification}
+From \texttt{conformal\_prediction.csv}, empirical conformal coverage was 1.0 for target coverages 0.80--0.95, with average prediction-set size between 2.34 and 2.64 classes. Singleton sets were rare (0.0--0.026), indicating conservative uncertainty sets.
+
+From \texttt{uncertainty\_decomposition.csv}, mean total uncertainty was 0.677, mostly aleatoric (mean 0.651), with smaller epistemic uncertainty (mean 0.025; epistemic fraction mean 0.040).
+
+\subsection{Summary of Evidence}
+Across statistical, cost, ablation, fairness, and uncertainty analyses, the current implementation provides consistent evidence that the HITL pipeline improves predictive and clinical utility over AI-only baseline. The main remaining technical risks are (i) fairness disparity across age groups and (ii) limited logged interaction data for stable efficiency/agreement estimates.
+
+\end{document}

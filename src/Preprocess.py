@@ -162,4 +162,4 @@ plt.close()
 # 9) SAVE PREPROCESSED DATA
 # ====================================================================
 data.to_csv('../data/preprocessed_data.csv', index=False)
-print("✅ Preprocessing complete. Tables and figures saved, preprocessed_data.csv exported.")
+print("Preprocessing complete. Tables and figures saved, preprocessed_data.csv exported.")

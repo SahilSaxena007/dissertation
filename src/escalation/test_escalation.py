@@ -22,14 +22,14 @@ from config import CLASS_NAMES, ESCALATION_CONFIG
 def main():
     artifacts_dir = os.path.join("..", "artifacts")
 
-    print("📦 Loading models …")
+    print("Loading models...")
     models = joblib.load(os.path.join(artifacts_dir, "voting_ensemble.pkl"))
 
-    print("📂 Loading X_test / y_test …")
+    print("Loading X_test / y_test...")
     X_test = np.load(os.path.join(artifacts_dir, "X_test.npy"))
     y_test = np.load(os.path.join(artifacts_dir, "y_test.npy"))
 
-    print("🚦 Running batch escalation on first 20 samples …")
+    print("Running batch escalation on first 20 samples...")
     df = run_batch_escalation(
         X=X_test[:20],
         y_true=y_test[:20],
@@ -39,10 +39,10 @@ def main():
     )
     print(df[["true_label_name", "pred_ens_name", "escalation_level"]])
 
-    print("\n📊 Escalation distribution (first 20):")
+    print("\nEscalation distribution (first 20):")
     print(df["escalation_level"].value_counts())
 
-    print("\n🧪 Testing single-case inference for sample_id=0 …")
+    print("\nTesting single-case inference for sample_id=0...")
     result = run_single_escalation(
         x_row=X_test[0],
         models=models,
