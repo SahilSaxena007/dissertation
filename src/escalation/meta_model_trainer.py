@@ -1,3 +1,6 @@
+# Author: Sahil Saxena (11409565)
+# University of Manchester, Department of Computer Science, 2025
+
 """
 Step 2 - Train Reliability Meta-Model (Model Comparison)
 

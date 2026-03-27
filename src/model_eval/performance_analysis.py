@@ -1,3 +1,6 @@
+# Author: Sahil Saxena (11409565)
+# University of Manchester, Department of Computer Science, 2025
+
 import os
 import numpy as np
 import pandas as pd

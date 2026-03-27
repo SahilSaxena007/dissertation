@@ -1,3 +1,6 @@
+# Author: Sahil Saxena (11409565)
+# University of Manchester, Department of Computer Science, 2025
+
 """
 Demo: Apply Step 2 meta-model + Step 3 threshold to a single patient.
 

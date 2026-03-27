@@ -1,3 +1,6 @@
+# Author: Sahil Saxena (11409565)
+# University of Manchester, Department of Computer Science, 2025
+
 """
 Extended k-sensitivity experiment that evaluates the impact of feature selection
 using SelectKBest with different k values.

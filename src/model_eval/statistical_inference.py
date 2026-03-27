@@ -1,3 +1,6 @@
+# Author: Sahil Saxena (11409565)
+# University of Manchester, Department of Computer Science, 2025
+
 """
 Component 6: Bootstrap confidence intervals for metrics.
 Adds statistical rigor by quantifying robustness of metrics via resampling.

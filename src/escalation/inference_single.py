@@ -1,3 +1,6 @@
+# Author: Sahil Saxena (11409565)
+# University of Manchester, Department of Computer Science, 2025
+
 """
 Run Step 2 escalation for a single patient (from the test set).
 

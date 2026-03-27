@@ -1,3 +1,6 @@
+# Author: Sahil Saxena (11409565)
+# University of Manchester, Department of Computer Science, 2025
+
 """
 Chains all 11 components for complete model evaluation.
 Entry point for comprehensive evaluation pipeline.

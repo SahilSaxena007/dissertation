@@ -1,3 +1,6 @@
+# Author: Sahil Saxena (11409565)
+# University of Manchester, Department of Computer Science, 2025
+
 """
 Components 3/4/5: Confusion matrix, ROC curves, calibration curves.
 High-quality diagnostic plots for model audit (Step 1 of HITL pipeline).

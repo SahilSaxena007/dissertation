@@ -1,3 +1,6 @@
+# Author: Sahil Saxena (11409565)
+# University of Manchester, Department of Computer Science, 2025
+
 """
 Component 10: Bias diagnostics and fairness analysis.
 Includes demographic parity, group fairness metrics, and disparate impact detection.

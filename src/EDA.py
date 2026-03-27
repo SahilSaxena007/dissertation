@@ -1,3 +1,7 @@
+# Original author: Benjamin Gidman (prior student codebase)
+# Modified and extended by: Sahil Saxena (11409565)
+# University of Manchester, Department of Computer Science, 2025
+
 #!/usr/bin/env python3
 """
 Comprehensive data QC and correlation analysis on merged_data.csv.

@@ -1,3 +1,6 @@
+# Author: Sahil Saxena (11409565)
+# University of Manchester, Department of Computer Science, 2025
+
 """
 Component 9: SHAP-based explainability analysis.
 Provides global feature importance, sample-level explanations, and dependency plots.

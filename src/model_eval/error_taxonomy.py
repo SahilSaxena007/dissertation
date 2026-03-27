@@ -1,3 +1,6 @@
+# Author: Sahil Saxena (11409565)
+# University of Manchester, Department of Computer Science, 2025
+
 """
 Per-sample error records: predictions, uncertainty signals, and correctness flags.
 Used for HITL review and meta-model training.

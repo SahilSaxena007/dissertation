@@ -1,3 +1,7 @@
+# Original author: Benjamin Gidman (prior student codebase)
+# Modified and extended by: Sahil Saxena (11409565)
+# University of Manchester, Department of Computer Science, 2025
+
 import json
 import os
 import warnings
