@@ -4,7 +4,7 @@ import joblib
 import numpy as np
 from tensorflow.keras.models import load_model
 
-from eval.orchestrator import analyze_model_performance
+from model_eval.orchestrator import analyze_model_performance
 
 
 class_names = ["SCD", "MCI", "AD"]

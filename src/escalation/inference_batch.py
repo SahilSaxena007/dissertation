@@ -15,8 +15,8 @@ import joblib
 import numpy as np
 
 from model_stub import create_model as _create_model  # noqa: F401
-from escalation_engine import run_batch_escalation, run_batch_escalation_from_probabilities
-from escalation_config import CLASS_NAMES, build_escalation_config
+from engine import run_batch_escalation, run_batch_escalation_from_probabilities
+from config import CLASS_NAMES, build_escalation_config
 from shap_utils import load_or_compute_shap
 
 __main__.create_model = _create_model

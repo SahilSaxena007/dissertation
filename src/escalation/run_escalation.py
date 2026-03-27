@@ -16,10 +16,10 @@ from datetime import datetime
 import joblib
 import numpy as np
 
-from run_inference_batch import run_oof_mode, run_testset_mode
-from run_step3_thresholds import build_human_accuracy_grid
-from step2_feature_builder import build_meta_dataframe_from_escalation
-from step2_train_meta_model import train_meta_model
+from inference_batch import run_oof_mode, run_testset_mode
+from threshold_runner import build_human_accuracy_grid
+from meta_feature_builder import build_meta_dataframe_from_escalation
+from meta_model_trainer import train_meta_model
 from threshold_optimizer import optimize_thresholds_with_sensitivity
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -78,7 +78,7 @@ def _evaluate_testset_policy(tau_star: float, human_accuracy_assumed: float) -> 
 
 
 def run_phase2_hitl(
-    review_budget: float = 0.2,
+    review_budget: float = 0.40,
     human_accuracy_min: float = 0.85,
     human_accuracy_max: float = 0.95,
     human_accuracy_step: float = 0.01,
@@ -156,7 +156,7 @@ def run_phase2_hitl(
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--review-budget", type=float, default=0.2, help="Max fraction for clinician review.")
+    parser.add_argument("--review-budget", type=float, default=0.08, help="Max fraction for clinician review.")
     parser.add_argument(
         "--human-accuracy-min",
         type=float,

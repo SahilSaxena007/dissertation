@@ -17,8 +17,8 @@ from model_stub import create_model as _create_model  # noqa: F401
 import __main__
 __main__.create_model = _create_model  # attach for unpickling
 
-from escalation_engine import run_single_escalation
-from escalation_config import CLASS_NAMES, ESCALATION_CONFIG
+from engine import run_single_escalation
+from config import CLASS_NAMES, ESCALATION_CONFIG
 
 
 def main():

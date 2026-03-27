@@ -13,9 +13,9 @@ from typing import Any, Dict, Iterable, Optional, Tuple
 import numpy as np
 
 try:
-    from .escalation_config import EscalationConfig
+    from .config import EscalationConfig
 except ImportError:
-    from escalation_config import EscalationConfig
+    from config import EscalationConfig
 
 
 # ---------------------------------------------------------------------------

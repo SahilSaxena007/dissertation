@@ -21,7 +21,7 @@ def build_human_accuracy_grid(min_value: float = 0.85, max_value: float = 0.95, 
 
 
 def main():
-    review_budget = 0.2
+    review_budget = 0.4
     # Literature-guided clinician performance range for sensitivity analysis.
     human_accuracy_values = build_human_accuracy_grid(min_value=0.85, max_value=0.95, step=0.01)
 

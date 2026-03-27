@@ -15,8 +15,8 @@ from .model_stub import create_model as _create_model  # noqa: F401
 
 sys.modules["__main__"].create_model = _create_model
 
-from escalation_engine import run_batch_escalation, run_single_escalation
-from escalation_config import CLASS_NAMES, ESCALATION_CONFIG
+from engine import run_batch_escalation, run_single_escalation
+from config import CLASS_NAMES, ESCALATION_CONFIG
 
 
 def main():

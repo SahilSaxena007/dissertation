@@ -2,8 +2,8 @@
 Non-interactive implementation validation pipeline.
 
 Usage (from src/):
-  python run_validation_pipeline.py
-  python run_validation_pipeline.py --full
+  python run_analysis_suite.py
+  python run_analysis_suite.py --full
 """
 
 from __future__ import annotations
@@ -77,12 +77,12 @@ def main() -> int:
     if args.full:
         _run([py, "ModelsFinal.py"])
         _run([py, "run_evaluation.py"])
-        _run([py, "escalation/run_phase2_hitl.py", "--run-testset-demo"])
+        _run([py, "escalation/run_escalation.py", "--run-testset-demo"])
 
     _run(
         [
             py,
-            "hitl/experiment_runner.py",
+            "hitl/run_experiment.py",
             "--accuracies",
             "0.85",
             "0.9",
@@ -95,17 +95,11 @@ def main() -> int:
             "1",
         ]
     )
-    _run([py, "escalation/run_step3_thresholds.py"])
-    _run([py, "evaluation/statistical_tests.py"])
-    _run([py, "evaluation/cost_analysis.py"])
-    _run([py, "evaluation/ablation_study.py"])
-    _run([py, "evaluation/fairness_analysis.py"])
-    _run([py, "evaluation/uncertainty_quantification.py"])
-    _run([py, "evaluation/efficiency_analysis.py"])
-    _run([py, "evaluation/agreement_analysis.py"])
+    _run([py, "escalation/threshold_runner.py"])
+    _run([py, "evaluation/run_analysis.py"])
 
     _assert_outputs()
-    print("Validation pipeline completed successfully.")
+    print("Analysis suite completed successfully.")
     return 0
 
 

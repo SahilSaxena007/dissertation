@@ -1,8 +1,8 @@
-﻿"""
-Deterministic artifact regeneration script (fixed seed config).
+"""
+Run Benjamin's base pipeline (merge → EDA → preprocess → train).
 
 Usage (from src/):
-  python run_deterministic_pipeline.py
+  python run_pipeline.py
 """
 
 from __future__ import annotations
@@ -15,7 +15,6 @@ from pathlib import Path
 from utils.project_config import SEED
 
 SRC_DIR = Path(__file__).resolve().parent
-ROOT = SRC_DIR.parent
 
 
 def _run(cmd: list[str], env: dict[str, str]) -> None:
@@ -33,12 +32,11 @@ def main() -> int:
     _run([py, "merge_files.py"], env)
     _run([py, "EDA.py"], env)
     _run([py, "Preprocess.py"], env)
+    _run([py, "KNN_test.py"], env)
+    _run([py, "selectkbest_test.py"], env)
     _run([py, "ModelsFinal.py"], env)
-    _run([py, "run_evaluation.py"], env)
-    _run([py, "escalation/run_phase2_hitl.py", "--run-testset-demo"], env)
-    _run([py, "run_validation_pipeline.py"], env)
 
-    print("Deterministic pipeline completed.")
+    print("Base pipeline completed.")
     return 0
 
 

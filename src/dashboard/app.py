@@ -19,8 +19,8 @@ SRC_DIR = Path(__file__).resolve().parents[1]
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from escalation.escalation_config import CLASS_NAMES, build_escalation_config
-from escalation.escalation_engine import run_batch_escalation_from_probabilities
+from escalation.config import CLASS_NAMES, build_escalation_config
+from escalation.engine import run_batch_escalation_from_probabilities
 from escalation.model_stub import create_model as _legacy_create_model
 from hitl.feedback_loop import run_active_learning_simulation
 from hitl.interaction_logger import ensure_db, get_default_db_path, log_clinician_feedback, log_event

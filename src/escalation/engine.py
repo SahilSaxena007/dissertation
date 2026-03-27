@@ -17,8 +17,8 @@ import numpy as np
 import pandas as pd
 
 try:
-    from .escalation_config import ESCALATION_CONFIG, CLASS_NAMES, EscalationConfig
-    from .escalation_rules import (
+    from .config import ESCALATION_CONFIG, CLASS_NAMES, EscalationConfig
+    from .rules import (
         compute_uncertainty_metrics,
         compute_model_disagreement,
         compute_missingness_flags,
@@ -26,8 +26,8 @@ try:
         compute_shap_instability,
     )
 except ImportError:
-    from escalation_config import ESCALATION_CONFIG, CLASS_NAMES, EscalationConfig
-    from escalation_rules import (
+    from config import ESCALATION_CONFIG, CLASS_NAMES, EscalationConfig
+    from rules import (
         compute_uncertainty_metrics,
         compute_model_disagreement,
         compute_missingness_flags,
