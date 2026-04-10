@@ -211,18 +211,18 @@ marimo/_lsp/
 __marimo__/
 
 # Project-generated outputs (local only)
-Outputs/
-reports/
-artifacts/
+# Outputs/
+# reports/
+# artifacts/
 
-# Personal/private folders
-research papers/
-dissertation_report/
-project requirements/
-tests/
-scripts/
-LITERATURE.md
-MASTERPLAN.md
-final-code-improvements.md
-migration.md
-.claude/
+# # Personal/private folders
+# research papers/
+# dissertation_report/
+# project requirements/
+# tests/
+# scripts/
+# LITERATURE.md
+# MASTERPLAN.md
+# final-code-improvements.md
+# migration.md
+# .claude/
