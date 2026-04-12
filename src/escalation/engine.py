@@ -54,6 +54,8 @@ def _evaluate_single_case(
     class_names: List[str] = CLASS_NAMES,
     shap_by_model: Optional[Dict[str, np.ndarray]] = None,
     pre_imputation_mask: Optional[np.ndarray] = None,
+    probs_xgb: Optional[np.ndarray] = None,
+    probs_svm: Optional[np.ndarray] = None,
 ) -> Dict[str, Any]:
     # Ensemble probabilities
     if probs_ens_override is None:
@@ -67,7 +69,12 @@ def _evaluate_single_case(
     pred_ens = int(np.argmax(probs_ens))
 
     unc = compute_uncertainty_metrics(probs_ens, config)
-    disagreement = compute_model_disagreement({"catboost": pred_cat, "rf": pred_rf, "nn": pred_nn})
+    disagreement_preds = {"catboost": pred_cat, "rf": pred_rf, "nn": pred_nn}
+    if probs_xgb is not None:
+        disagreement_preds["xgb"] = int(np.argmax(probs_xgb))
+    if probs_svm is not None:
+        disagreement_preds["svm"] = int(np.argmax(probs_svm))
+    disagreement = compute_model_disagreement(disagreement_preds)
     missing = compute_missingness_flags(x_row, config, pre_imputation_mask=pre_imputation_mask)
     multimodal = compute_multimodal_mismatch(x_row, config)
     shap = compute_shap_instability(shap_by_model=shap_by_model)
@@ -170,6 +177,8 @@ def run_batch_escalation_from_probabilities(
     config: EscalationConfig = ESCALATION_CONFIG,
     shap_values_by_model: Optional[Dict[str, np.ndarray]] = None,
     nan_mask: Optional[np.ndarray] = None,
+    probs_xgb: Optional[np.ndarray] = None,
+    probs_svm: Optional[np.ndarray] = None,
 ) -> pd.DataFrame:
     n_samples = X.shape[0]
     if y_true is None:
@@ -202,6 +211,8 @@ def run_batch_escalation_from_probabilities(
             class_names=class_names,
             shap_by_model=shap_row,
             pre_imputation_mask=pre_imp_mask_row,
+            probs_xgb=probs_xgb[i] if probs_xgb is not None else None,
+            probs_svm=probs_svm[i] if probs_svm is not None else None,
         )
         row["sample_id"] = int(i)
         rows.append(row)

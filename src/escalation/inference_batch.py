@@ -62,6 +62,17 @@ def run_oof_mode(artifacts_dir: str):
     else:
         print("   Selected OOF ensemble probabilities not found; using raw ensemble average.")
 
+    # Load XGBoost and SVM OOF probabilities for full 5-model disagreement signal
+    probs_xgb, probs_svm = None, None
+    xgb_path = os.path.join(artifacts_dir, "oof_xgb_proba.npy")
+    svm_path = os.path.join(artifacts_dir, "oof_svm_proba.npy")
+    if os.path.exists(xgb_path):
+        probs_xgb = np.load(xgb_path)
+        print("   Loaded oof_xgb_proba.npy for disagreement signal.")
+    if os.path.exists(svm_path):
+        probs_svm = np.load(svm_path)
+        print("   Loaded oof_svm_proba.npy for disagreement signal.")
+
     nan_mask = _load_nan_mask(artifacts_dir, "oof")
 
     # Load models for SHAP computation
@@ -87,6 +98,8 @@ def run_oof_mode(artifacts_dir: str):
         config=config,
         shap_values_by_model=shap_values,
         nan_mask=nan_mask,
+        probs_xgb=probs_xgb,
+        probs_svm=probs_svm,
     )
     return df, "escalation_table_oof.csv"
 
@@ -122,6 +135,17 @@ def run_testset_mode(artifacts_dir: str):
     shap_values = load_or_compute_shap(models, X_test, source="holdout")
     config = build_escalation_config()
 
+    # Load XGBoost and SVM holdout probabilities for full 5-model disagreement signal
+    probs_xgb, probs_svm = None, None
+    xgb_path = os.path.join(artifacts_dir, "holdout_xgb_proba.npy")
+    svm_path = os.path.join(artifacts_dir, "holdout_svm_proba.npy")
+    if os.path.exists(xgb_path):
+        probs_xgb = np.load(xgb_path)
+        print("   Loaded holdout_xgb_proba.npy for disagreement signal.")
+    if os.path.exists(svm_path):
+        probs_svm = np.load(svm_path)
+        print("   Loaded holdout_svm_proba.npy for disagreement signal.")
+
     if calibrated_probs is not None:
         # Use from_probabilities path with calibrated override
         all_probs = {name: m.predict_proba(X_test) for name, m in models.items()}
@@ -139,16 +163,28 @@ def run_testset_mode(artifacts_dir: str):
             config=config,
             shap_values_by_model=shap_values,
             nan_mask=nan_mask,
+            probs_xgb=probs_xgb,
+            probs_svm=probs_svm,
         )
     else:
-        df = run_batch_escalation(
+        all_probs = {name: m.predict_proba(X_test) for name, m in models.items()}
+        probs_cat = all_probs.get("catboost", list(all_probs.values())[0])
+        probs_rf = all_probs.get("rf", list(all_probs.values())[min(1, len(all_probs) - 1)])
+        probs_nn = all_probs.get("nn", list(all_probs.values())[min(2, len(all_probs) - 1)])
+        probs_ens = np.mean(list(all_probs.values()), axis=0)
+        df = run_batch_escalation_from_probabilities(
             X=X_test,
             y_true=y_test,
-            models=models,
+            probs_cat=probs_cat,
+            probs_rf=probs_rf,
+            probs_nn=probs_nn,
+            probs_ens_override=probs_ens,
             class_names=CLASS_NAMES,
             config=config,
             shap_values_by_model=shap_values,
             nan_mask=nan_mask,
+            probs_xgb=probs_xgb,
+            probs_svm=probs_svm,
         )
     return df, "escalation_table_testset.csv"
 

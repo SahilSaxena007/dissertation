@@ -132,6 +132,8 @@ def run_uncertainty_quantification():
     probs_cat = np.load(os.path.join(ARTIFACTS_DIR, "oof_cat_proba.npy"))
     probs_rf = np.load(os.path.join(ARTIFACTS_DIR, "oof_rf_proba.npy"))
     probs_nn = np.load(os.path.join(ARTIFACTS_DIR, "oof_nn_proba.npy"))
+    probs_xgb = np.load(os.path.join(ARTIFACTS_DIR, "oof_xgb_proba.npy"))
+    probs_svm = np.load(os.path.join(ARTIFACTS_DIR, "oof_svm_proba.npy"))
 
     # Holdout for conformal test set
     X_test = np.load(os.path.join(ARTIFACTS_DIR, "X_test.npy"))
@@ -174,12 +176,29 @@ def run_uncertainty_quantification():
             alpha=alpha,
         )
 
-        # Compute empirical coverage
+        # Compute marginal empirical coverage
         coverage = 0.0
         for i in range(len(y_test)):
             if int(y_test[i]) in result["prediction_sets"][i]:
                 coverage += 1.0
         coverage /= len(y_test)
+
+        # Compute class-conditional coverage for SCD=0, MCI=1, AD=2
+        class_names_conf = {0: "SCD", 1: "MCI", 2: "AD"}
+        class_coverage = {}
+        class_counts = {}
+        for cls in [0, 1, 2]:
+            cls_mask = (y_test == cls)
+            cls_n = int(cls_mask.sum())
+            class_counts[cls] = cls_n
+            if cls_n > 0:
+                covered = sum(
+                    1 for i in range(len(y_test))
+                    if cls_mask[i] and (cls in result["prediction_sets"][i])
+                )
+                class_coverage[cls] = covered / cls_n
+            else:
+                class_coverage[cls] = float("nan")
 
         conf_rows.append({
             "alpha": alpha,
@@ -188,6 +207,12 @@ def run_uncertainty_quantification():
             "avg_set_size": result["avg_set_size"],
             "singleton_fraction": result["singleton_fraction"],
             "qhat": result["qhat"],
+            "coverage_SCD": class_coverage[0],
+            "coverage_MCI": class_coverage[1],
+            "coverage_AD": class_coverage[2],
+            "n_SCD": class_counts[0],
+            "n_MCI": class_counts[1],
+            "n_AD": class_counts[2],
         })
 
     df_conf = pd.DataFrame(conf_rows)
@@ -196,11 +221,13 @@ def run_uncertainty_quantification():
     print(f"Saved conformal prediction results to: {conf_path}")
     print(df_conf.to_string(index=False))
 
-    # 2. Uncertainty decomposition (on OOF data)
+    # 2. Uncertainty decomposition (on OOF data) — all 5 ensemble models
     df_unc = uncertainty_decomposition({
         "catboost": probs_cat,
         "rf": probs_rf,
         "nn": probs_nn,
+        "xgb": probs_xgb,
+        "svm": probs_svm,
     })
 
     # Summary statistics
