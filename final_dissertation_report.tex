@@ -1,0 +1,551 @@
+================================================================
+  FINAL DISSERTATION REPORT — SAHIL SAXENA (11409565)
+  A Human-in-the-Loop Framework for Alzheimer's Disease
+  Stage Classification Using Multimodal Biomarkers
+  University of Manchester, 2025–2026
+
+  This file contains all written sections produced/revised
+  in collaboration with Claude. Append new sections below.
+================================================================
+
+
+================================================================
+  CHAPTER 3: TECHNICAL BACKGROUND AND LITERATURE REVIEW
+  Sections 3.1 -- 3.4
+================================================================
+
+% -----------------------------------------------------------
+\section{Machine Learning for Alzheimer's Disease Classification}
+\label{sec:ml-ad}
+% -----------------------------------------------------------
+
+The application of supervised machine learning to Alzheimer's disease
+classification has a history spanning two decades, evolving in tandem with both
+algorithmic advances and the growing availability of multimodal biomarker
+datasets. \citet{kloppel2008automatic} established an early proof of concept by
+demonstrating that a linear support vector machine (SVM) operating on
+voxel-based morphometry features derived from structural MRI could discriminate
+AD from cognitively normal individuals with accuracy comparable to expert
+radiologists. That result set the benchmark for automated biomarker-based
+classification, but also exposed its primary limitation: the reliance on a
+single imaging modality and a binary label, neither of which reflects the
+clinical reality of three-class staging from heterogeneous tabular data.
+
+The subsequent diversification of methods is systematically reviewed by
+\citet{rathore2017review}, who document the consistent advantage of multi-modal
+feature sets over single-modality inputs across more than 300 classification
+studies. Critically for the present work, their review identifies three
+structural challenges that apply directly to ADNI-derived cohorts: class
+imbalance between diagnostic groups, small effective sample sizes relative to
+feature dimensionality, and variable missingness arising from differential
+availability of CSF, plasma, and imaging biomarkers across participants. Each of
+these challenges shaped design decisions in this project: the near-balanced
+576-patient cohort mitigates the first, repeated stratified cross-validation
+addresses the second, and fold-aware $k$-NN imputation handles the third.
+
+Deep learning approaches have produced impressive results where sufficient
+imaging data are available. \citet{ding2019deep} trained a convolutional network
+on $^{18}$F-FDG PET scans and demonstrated detection of AD pathology up to six
+years before clinical diagnosis. However, the gains offered by deep learning are
+contingent on large labelled datasets; for tabular cohorts of the scale used
+here (576 patients, 12 selected features), well-regularised ensemble methods
+are empirically competitive, and their interpretability properties are
+substantially more tractable for clinical deployment \citep{rathore2017review}.
+
+Multi-class staging (SCD vs.\ MCI vs.\ AD) presents a qualitatively harder
+problem than binary detection. MCI is the most diagnostically heterogeneous
+category---spanning amnestic and non-amnestic subtypes with differing
+progression trajectories---and the SCD--MCI boundary is defined by a continuous
+gradient rather than a discrete threshold. This structural ambiguity manifests
+as suppressed per-class accuracy at the MCI boundary in classifiers that lack an
+uncertainty-aware output mechanism, motivating the uncertainty quantification
+and escalation framework described in Sections~\ref{sec:uq} and~\ref{sec:hitl}.
+
+% -----------------------------------------------------------
+\section{Ensemble Methods and Model Stacking}
+\label{sec:ensemble}
+% -----------------------------------------------------------
+
+Ensemble learning reduces generalisation error by combining the outputs of
+multiple base learners whose errors are partially independent.
+\citet{breiman2001random} showed that the Random Forest---combining bagging with
+random feature subsampling at each split---achieves robust generalisation on
+tabular data by decorrelating tree predictions, making it naturally resistant to
+overfitting in small-to-medium cohorts. The gradient boosting paradigm,
+formalised by \citet{chen2016xgboost} in XGBoost through second-order gradient
+approximations and L1/L2 regularisation, yields state-of-the-art performance on
+structured prediction benchmarks. \citet{prokhorenkova2018catboost} extended
+this with \emph{ordered boosting}, which estimates gradients on subsets that
+exclude the current sample, mitigating the target leakage that standard boosting
+can introduce when gradient statistics are computed over the full training fold.
+In this project, CatBoost, Random Forest, XGBoost, a neural network, and an SVM
+are included as base learners specifically because they represent distinct
+inductive biases---variance reduction, sequential correction, ordered
+statistics, non-linear activation, and margin maximisation---whose errors are
+unlikely to co-occur on the same cases.
+
+\emph{Stacked generalisation} \citep{wolpert1992stacked} trains a meta-learner
+on the out-of-fold (OOF) probability outputs of the base models, learning
+optimal combinations of base model estimates rather than raw features. Training
+on OOF predictions is essential: a base model that memorises training data will
+produce near-perfect in-sample outputs, and a meta-learner trained on those same
+predictions would upweight the overfitting model, producing misleadingly
+optimistic performance. Here, a logistic regression meta-learner is trained on a
+15-dimensional vector (five models $\times$ three class probabilities) and
+compared against simple probability averaging; the better-performing combination
+is selected for downstream use.
+
+Probability calibration is a prerequisite for a reliable escalation threshold.
+A model that reports 0.90 confidence but is correct only 75\% of the time
+renders any threshold $\tau$ meaningless. \citet{platt1999probabilistic}
+proposed sigmoid calibration to map raw scores to calibrated probabilities
+post-hoc; \citet{niculescu2005predicting} extended this comparison to isotonic
+regression and showed the relative advantage of each method depends on
+calibration set size, with isotonic regression requiring more data to avoid
+overfitting the calibration mapping. Both methods are evaluated here using
+Expected Calibration Error (ECE) as the selection criterion; the raw ensemble
+probabilities achieve ECE~$= 0.042$ (Section~\ref{sec:baseline}), outperforming
+both post-hoc calibrators on this cohort, and are retained for all downstream
+use.
+
+% -----------------------------------------------------------
+\section{Human-in-the-Loop Machine Learning}
+\label{sec:hitl}
+% -----------------------------------------------------------
+
+A Human-in-the-Loop (HITL) system integrates human judgement into the machine
+learning pipeline in a principled, anticipatory way: the system identifies where
+human input adds the most value, presents the relevant information efficiently,
+and closes the loop by using feedback to update the model
+\citep{monarch2021hitl}. The defining distinction from conventional decision
+support is selectivity: rather than routing every AI output to a clinician for
+review, the system escalates only a calibrated subset of cases where the model's
+uncertainty is elevated or data quality is insufficient.
+\citet{amershi2014power} characterise this as the core mechanism by which
+interactive ML preserves automation throughput while recovering the accuracy
+benefits of human oversight on the cases that most require it.
+
+The case for HITL deployment in medical AI is well-supported.
+\citet{topol2019highperformance} argues that AI and clinical expertise are
+complementary rather than competitive: AI performs best on high-volume,
+high-confidence cases while clinicians add the greatest marginal value on
+complex, uncertain ones. \citet{rajpurkar2022ai} survey the clinical AI
+landscape and conclude that most high-performing medical AI systems still
+require structured human oversight to be safe and deployable---a conclusion that
+applies with particular force to AD staging, where misclassification determines
+DMT eligibility and false positives expose patients to immunotherapy side
+effects, including amyloid-related imaging abnormalities.
+
+In this project, the escalation policy takes a three-tier form.
+\textbf{AI-Autonomous} cases are those where all uncertainty signals fall below
+calibrated thresholds; the model prediction is accepted without review.
+\textbf{AI-Assisted} cases trigger a clinician review informed by the AI
+recommendation and SHAP feature attributions. \textbf{Clinician-Mandatory} cases
+involve critical data absence or cross-modality biomarker inconsistencies that
+place the case outside the model's reliable operating region regardless of
+predicted confidence. This graduated structure concentrates the review budget on
+cases where a change in outcome is most likely, the quantitative benefit of
+which is demonstrated in Section~\ref{sec:hitl-performance}.
+
+% -----------------------------------------------------------
+\section{Uncertainty Quantification and Conformal Prediction}
+\label{sec:uq}
+% -----------------------------------------------------------
+
+Meaningful uncertainty quantification is the foundation on which the escalation
+engine rests. The standard scalar measures for a probabilistic classifier are
+\emph{maximum predicted probability} (confidence), \emph{decision margin} (the
+gap between top-1 and top-2 class probabilities), and \emph{predictive entropy}:
+\begin{equation}
+  H(\mathbf{p}) = -\sum_{k=1}^{K} p_k \log p_k,
+  \label{eq:entropy}
+\end{equation}
+where $p_k$ is the predicted probability for class $k$ and $K = 3$ in this
+project. Entropy reaches its maximum of $\log K$ when probability is
+distributed uniformly across classes, and zero for a perfectly confident
+prediction. These scalar measures are complementary---a low-confidence
+prediction may still carry a large margin if probability mass concentrates on
+two classes, while high entropy captures three-way ambiguity that neither
+confidence nor margin alone detects---but none carries a formal statistical
+guarantee about coverage of the true label.
+
+\emph{Conformal prediction} \citep{shafer2008tutorial,
+angelopoulos2023conformal} addresses this gap by constructing
+\emph{prediction sets}: sets of candidate labels that are guaranteed to contain
+the true label with pre-specified probability $1 - \alpha$, without assumptions
+on the data distribution or model calibration quality. A conformal predictor
+computes a nonconformity score for each calibration sample (here, the complement
+of the predicted probability for the true class), estimates the
+$(1 - \alpha)$-quantile $\hat{q}$ of the empirical score distribution with a
+finite-sample correction, and includes class $k$ in the prediction set if its
+predicted probability exceeds $1 - \hat{q}$.
+
+The \emph{Adaptive Prediction Sets} (APS) variant \citep{angelopoulos2023conformal}
+improves on standard conformal prediction for multi-class problems by forming
+nonconformity scores from the sorted cumulative probability distribution,
+producing sets that shrink on easy cases and expand on genuinely ambiguous ones.
+This adaptive property has direct clinical utility: a set of $\{\text{SCD}\}$
+at $\alpha = 0.05$ is a strong, actionable recommendation, while a set of
+$\{\text{SCD}, \text{MCI}, \text{AD}\}$ is an unambiguous signal for mandatory
+escalation. An $\alpha$-sweep over $\{0.05, 0.10, 0.15, 0.20\}$ yields
+empirical coverages of 1.000 across all settings (Section~\ref{sec:conformal}),
+with average prediction set sizes ranging from 2.34 to 2.61---a result that
+reflects the high inherent uncertainty in this three-class cohort and the
+conservative nature of the finite-sample CP guarantee.
+
+
+================================================================
+  CHAPTER 2: CLINICAL BACKGROUND
+================================================================
+
+\chapter{Clinical Background}
+\label{chap:clinical-background}
+
+% -----------------------------------------------------------
+\section{Alzheimer's Disease Pathology}
+\label{sec:ad-pathology}
+% -----------------------------------------------------------
+
+Alzheimer's disease (AD) is the most prevalent neurodegenerative disorder
+worldwide, accounting for an estimated 60--70\% of the approximately 57 million
+people living with dementia globally \citep{who2023dementia}. Its molecular
+pathology is defined by two hallmark lesions: extracellular neuritic plaques
+composed of misfolded amyloid-$\beta$ (A$\beta$) peptide, and intraneuronal
+neurofibrillary tangles (NFTs) formed by hyperphosphorylated tau protein. The
+\emph{amyloid cascade hypothesis} posits that aberrant cleavage of amyloid
+precursor protein by $\beta$- and $\gamma$-secretases generates
+A$\beta_{42}$ fragments whose aggregation triggers a downstream cascade of
+neuroinflammation, synaptic dysfunction, tau hyperphosphorylation, and
+progressive neuronal loss \citep{mckhann2011diagnosis}.
+
+The temporal ordering of these pathological events is now well characterised.
+\citet{jack2018nia} formalised this understanding in the NIA-AA
+\emph{A/T/(N) biomarker framework}, which groups biomarkers into three
+categories: \textbf{A} (amyloid pathology), measured by CSF
+A$\beta_{42}$, the A$\beta_{42}$/A$\beta_{40}$ ratio, or amyloid PET;
+\textbf{T} (tau pathology), measured by CSF phosphorylated tau (p-tau) or tau
+PET; and \textbf{(N)} (neurodegeneration), measured by CSF total tau (t-tau),
+FDG-PET hypometabolism, or structural MRI atrophy. Crucially, amyloid
+deposition is detectable approximately 15--20 years before the onset of
+clinical symptoms, establishing a substantial preclinical window for
+biomarker-guided intervention and---as this project demonstrates---for
+machine-learning systems that can flag at-risk individuals before irreversible
+cognitive decline.
+
+More recently, plasma-based biomarkers have made non-invasive screening
+increasingly feasible \citep{zetterberg2021plasma}. Plasma neurofilament light
+chain (NfL) reflects axonal injury across neurodegenerative conditions, while
+plasma p-tau reliably distinguishes AD from non-AD dementias. The availability
+of both CSF and plasma markers within the same cohort---as in the ADNI dataset
+used here---enables the multi-modal feature space that underpins this project's
+ensemble classifier and, as the SHAP analysis in
+Section~\ref{sec:explainability} reveals, exposes which biomarker modality
+contributes most to each diagnostic boundary.
+
+% -----------------------------------------------------------
+\section{The AD Continuum: SCD, MCI, and Dementia}
+\label{sec:ad-continuum}
+% -----------------------------------------------------------
+
+Contemporary research frames Alzheimer's disease not as a discrete clinical
+event but as a decades-long biological continuum that unfolds in clinically
+distinguishable stages. The first recognisable stage, \emph{Subjective
+Cognitive Decline} (SCD), is defined by self-reported perception of worsening
+memory or cognitive function in the absence of detectable objective impairment
+on standardised neuropsychological tests \citep{jessen2014scd}. Although SCD
+individuals perform within normal limits, a substantial subset already carry
+early AD pathology: elevated CSF tau-to-amyloid ratios, amyloid-PET positivity,
+and accelerated hippocampal atrophy are detectable at this stage. Identifying
+which SCD individuals are on a trajectory to conversion is one of the key
+clinical challenges that disease-modifying therapies (DMTs) now demand.
+
+The second stage, \emph{Mild Cognitive Impairment} (MCI), is operationally
+defined as objective impairment on cognitive testing---typically one to two
+standard deviations below age-adjusted norms---combined with preserved
+functional independence in daily activities \citep{albert2011mci,
+petersen2004mci}. The amnestic subtype of MCI carries an annual conversion rate
+to dementia of approximately 10--15\%, compared with 1--2\% in cognitively
+normal individuals. Conventional MCI criteria, however, are susceptible to
+false-positive diagnostic errors; \citet{edmonds2015mci} demonstrated that up
+to one-third of individuals classified as MCI using standard cut-offs were
+cognitively normal on comprehensive neuropsychological testing. This diagnostic
+ambiguity makes MCI the hardest boundary for both clinicians and classifiers,
+a pattern reflected in this project's per-class results: in Section~\ref{sec:hitl-performance},
+MCI shows the lowest AI-only accuracy and the largest gain (+20.3 percentage
+points) when the HITL escalation engine routes uncertain cases to human review.
+
+\emph{Alzheimer's dementia} is diagnosed when cognitive deficits are
+sufficiently severe to interfere with daily functioning
+\citep{mckhann2011diagnosis}. By this stage, widespread synaptic loss, cortical
+atrophy, and significant NFT burden are established. The clinical utility of AD
+diagnostics therefore pivots increasingly towards the pre-dementia stages, where
+intervention is most likely to be effective.
+
+For DMT eligibility, staging precision is critical. Lecanemab was trialled in
+patients with early AD (MCI or mild dementia with amyloid confirmation),
+achieving a 27\% reduction in clinical decline over 18 months
+\citep{vandyck2023lecanemab}. Donanemab similarly targeted early symptomatic
+patients, achieving a 35\% slowing of progression in the low/medium tau
+subgroup \citep{sims2023donanemab}. Both results underscore that accurate
+pre-selection---distinguishing SCD converters, amnestic MCI, and established
+AD from non-converters and non-AD conditions---translates directly to treatment
+benefit, and that the cost of misclassification is not merely statistical but
+clinical.
+
+% -----------------------------------------------------------
+\section{Clinical Diagnosis and the Role of AI}
+\label{sec:clinical-diagnosis}
+% -----------------------------------------------------------
+
+Current clinical diagnosis of AD stages relies on the convergence of evidence
+from multiple modalities: standardised cognitive assessments such as the
+Mini-Mental State Examination (MMSE), Montreal Cognitive Assessment (MoCA), and
+the Clinical Dementia Rating (CDR); structural neuroimaging to assess cortical
+atrophy and hippocampal volume; CSF biomarkers for A$\beta$ and tau; and
+increasingly, plasma biomarkers for NfL and p-tau217. A definitive ante-mortem
+diagnosis still requires biomarker confirmation under most research-grade
+protocols.
+
+This multi-modal assessment process is resource-intensive and demands
+specialised expertise. The classification boundaries between SCD, MCI, and AD
+are not hard thresholds but probabilistic gradients, requiring clinicians to
+exercise considerable judgement when interpreting borderline biomarker
+profiles. \citet{edmonds2015mci} showed that conventional criteria are
+susceptible to false-positive errors, and inter-rater agreement between
+specialists can be moderate---introducing both under-diagnosis (missing
+patients who would benefit from early treatment) and over-diagnosis (exposing
+patients to unnecessary follow-up or DMTs with significant side-effect
+profiles such as amyloid-related imaging abnormalities).
+
+Supervised machine learning offers a complementary path. Models trained on
+large, curated biomarker datasets can identify multivariate feature
+interactions that predict staging labels more reliably than individual
+biomarkers in isolation, and can apply these patterns consistently without
+fatigue or inter-rater drift \citep{rathore2017review}. Yet applying ML to
+clinical decision support introduces well-documented challenges: opaque
+predictions erode clinician trust, high-confidence errors propagate
+uncorrected, and there is no inherent mechanism for incorporating domain
+expertise or patient-specific context that lies outside the feature
+space \citep{topol2019highperformance}.
+
+A HITL framework addresses these shortcomings structurally. The ML system
+serves as a first-line screener that quantifies its own uncertainty through
+multiple complementary signals---entropy, model disagreement, conformal
+prediction set size---and escalates cases that exceed a calibrated threshold to
+human review. This design preserves the throughput and consistency of
+automated classification for clear-cut cases while reserving clinician
+authority for the ambiguous boundary cases where human expertise adds the
+greatest marginal value. As the results in Chapter~\ref{chap:results}
+demonstrate, this selective routing reduces clinical misclassification cost by
+62.4\% at a 40\% review budget, with the largest gains concentrated in exactly
+the MCI boundary cases where diagnostic uncertainty is highest.
+
+% -----------------------------------------------------------
+\section{The ADNI Dataset}
+\label{sec:adni}
+% -----------------------------------------------------------
+
+The Alzheimer's Disease Neuroimaging Initiative (ADNI) is a longitudinal,
+multi-site observational study launched in 2004 with the primary goal of
+validating biomarkers for use as clinical trial endpoints
+\citep{weiner2017adni}. Now in its fourth phase (ADNI4), the initiative has
+enrolled over 2{,}400 participants across more than 60 sites in the United
+States and Canada, collecting repeated measurements of MRI volumetrics, amyloid
+and tau PET imaging, CSF and plasma biomarkers, genetic markers (including APOE
+genotyping), and comprehensive neuropsychological batteries.
+
+The dataset used in this project is constructed by merging four ADNI source
+tables on participant identifier (RID) and visit code (VISCODE):
+
+\begin{enumerate}[nosep]
+  \item \textbf{ADNIMERGE} --- the canonical longitudinal table providing
+    demographics (age, sex, education), CSF biomarkers (TAU, PTAU,
+    A$\beta_{1\text{--}42}$), MMSE scores, and diagnostic labels;
+  \item \textbf{BLENNOWPLASMANFL} --- plasma neurofilament light chain
+    (PLASMA\_NFL);
+  \item \textbf{UPENNPLASMA} --- plasma A$\beta_{42}$ and A$\beta_{40}$, from
+    which the AB42/40 ratio is computed;
+  \item \textbf{BLENNOWPLASMATAU} --- plasma total tau (PLASMATAU).
+\end{enumerate}
+
+After merging and dropping records without plasma NfL measurements, the cohort
+comprises \textbf{576 patients} with a near-balanced class distribution:
+193~SCD (33.5\%), 195~MCI (33.9\%), and 188~AD (32.6\%). The mean age is
+75.2~years (SD~6.7), 58.2\% are male, and the mean MMSE score is 26.5
+(range 18--30). The MMSE distribution across stages---SCD: $29.1 \pm 1.0$,
+MCI: $26.9 \pm 1.8$, AD: $23.3 \pm 2.1$---illustrates the overlapping
+cognitive profiles that make three-class separation challenging, particularly
+at the SCD--MCI boundary where score distributions overlap substantially.
+
+The raw 13-column feature set is extended by the preprocessing pipeline
+(Chapter~\ref{chap:design}) with five engineered ratio features
+(e.g.\ TAU/PTAU, ABETA/TAU, PTAU/ABETA), yielding 16 candidate features.
+Mutual-information-based feature selection (SelectKBest, $k{=}12$) retains the
+12 most informative features, dropping sex (PTGENDER), education (PTEDUCAT),
+and the AB42/40 ratio (AB4240) whose marginal information gain falls below the
+selection threshold.
+
+Missingness is concentrated in the CSF modality: TAU, PTAU, and ABETA are each
+missing for 33.9\% of patients, reflecting the invasiveness of lumbar
+puncture; AB4240 is missing for 10.9\%; and PLASMATAU for just 0.5\%. All
+remaining features---including PLASMA\_NFL, MMSE, AGE, and the demographic
+variables---are fully observed. This missingness pattern is clinically
+realistic and mirrors the differential availability of CSF versus plasma
+assays in routine practice. The pipeline handles it using distance-weighted
+$k$-nearest-neighbour imputation ($k{=}9$), applied within each
+cross-validation fold to prevent information leakage from held-out samples
+into imputed training values.
+
+Two properties of this cohort are important for interpreting downstream results.
+First, the near-equal class balance eliminates prior-probability confounding,
+meaning that accuracy differences across classes (Section~\ref{sec:hitl-performance})
+reflect genuine classifier difficulty rather than prevalence imbalance.
+Second, the 33.9\% CSF missingness means that a substantial fraction of
+patients are classified primarily from plasma, cognitive, and demographic
+features---a scenario where model uncertainty is expected to be higher and the
+HITL escalation engine (Section~\ref{sec:escalation-quality}) is designed to
+intervene.
+
+
+================================================================
+  CHAPTER 3: TECHNICAL BACKGROUND AND LITERATURE REVIEW
+  Sections 3.5 -- 3.7
+================================================================
+
+% -----------------------------------------------------------
+\section{Explainable AI}
+\label{sec:xai}
+% -----------------------------------------------------------
+
+Clinician trust in AI-assisted diagnosis depends not only on prediction accuracy
+but on the intelligibility of the reasoning behind each prediction.
+Explainable AI (XAI) methods bridge this gap by attributing contributions to
+individual input features, enabling a clinician to assess whether the model's
+reasoning aligns with established biomarker knowledge before acting on its
+recommendation.
+
+SHAP (SHapley Additive exPlanations) \citep{lundberg2017shap} provides a
+game-theoretic framework for feature attribution grounded in Shapley values from
+cooperative game theory. For a prediction $f(\mathbf{x})$, each feature $i$
+receives an attribution $\phi_i$ satisfying:
+\begin{equation}
+  f(\mathbf{x}) = \phi_0 + \sum_{i=1}^{p} \phi_i,
+  \label{eq:shap}
+\end{equation}
+where $\phi_0 = \mathbb{E}[f(\mathbf{X})]$ is the expected model output across
+the dataset and $\sum_i \phi_i$ captures the deviation from this baseline for
+the individual patient. The Shapley value for feature $i$ is defined as the
+average marginal contribution of that feature across all possible feature
+coalitions, which guarantees three properties that are valuable in a clinical
+context: \emph{efficiency} (attributions sum exactly to the prediction),
+\emph{symmetry} (features with identical contributions receive equal
+attribution), and \emph{missingness} (features absent from the input contribute
+zero). Together, these ensure that SHAP attributions are both faithful to the
+model and internally consistent---a clinician examining two patients with
+identical biomarker profiles will see identical explanations.
+
+For tree-based models, SHAP's TreeExplainer computes exact Shapley values in
+polynomial time by exploiting the tree structure to enumerate feature
+coalitions efficiently \citep{lundberg2017shap}. This computational tractability
+is critical for two reasons. First, it enables real-time explanation generation
+in the clinical dashboard (Chapter~\ref{chap:design}), where a SHAP waterfall
+plot is rendered for each escalated patient at the point of clinician review.
+Second, it makes it feasible to compute SHAP values for the full 460-sample OOF
+set across all three classes, yielding a $460 \times 12 \times 3$ attribution
+tensor that supports both global importance ranking and per-class directional
+analysis (Section~\ref{sec:explainability}).
+
+Beyond individual explanations, SHAP attributions serve a second role in this
+project as an escalation signal. The \emph{SHAP instability} metric computes the
+mean per-feature variance of attribution vectors across the base models for a
+given patient. When different models attribute importance to different features
+for the same case, the ensemble's prediction lacks a consistent biomarker
+grounding even if the predicted class is unanimous. High instability is
+therefore a meaningful warning signal that complements the probabilistic
+uncertainty measures described in Section~\ref{sec:uq}, and is included as one
+of the seven signals in the composite escalation risk score.
+
+% -----------------------------------------------------------
+\section{Active Learning and Feedback Loops}
+\label{sec:active-learning}
+% -----------------------------------------------------------
+
+Active learning is a semi-supervised paradigm in which the model identifies
+which unlabelled examples would most improve its performance if labelled, and
+selectively queries an oracle---typically a human annotator---for those labels
+\citep{settles2009active}. The key insight is that not all labelled corrections
+are equally informative: a clinician who confirms a confident, correct
+prediction adds no signal, while a correction on a genuinely uncertain boundary
+case provides high epistemic value because it resolves ambiguity in precisely
+the region of feature space where the model is weakest.
+
+\citet{settles2009active} categorises query strategies into three families.
+\emph{Uncertainty sampling} prioritises examples with the highest predictive
+entropy or lowest confidence. \emph{Query by committee} selects examples on
+which a committee of models disagrees most strongly, measuring disagreement
+through vote entropy or KL divergence. \emph{Expected model change} selects
+examples whose labels would produce the largest gradient update, directly
+optimising for information gain. In an ensemble-based HITL system, query by
+committee aligns naturally with the model disagreement signal already computed
+for escalation purposes---the cases that the escalation engine routes for
+review are, by construction, the cases on which the ensemble's constituent
+models disagree most.
+
+In this project, the feedback loop implements a risk-ranked retraining strategy
+that extends uncertainty sampling. Clinician corrections are accumulated into a
+feedback pool ordered by the composite escalation risk score. After each batch
+of corrections, the full ensemble (CatBoost, Random Forest, and neural network)
+is retrained on the union of the original training set and the feedback pool.
+Each corrected sample is weighted by a function of the clinician's self-reported
+confidence on a 1--5 scale: $w = 0.5 + c/5$, where $c$ is the confidence
+rating, yielding weights in $[0.7, 1.5]$. This weighting ensures that
+high-confidence corrections exert proportionally greater influence on the
+retrained model, providing a principled mechanism for handling the annotation
+noise that is inherent in simulated (and, eventually, real) clinician feedback.
+
+% -----------------------------------------------------------
+\section{Summary and Research Positioning}
+\label{sec:positioning}
+% -----------------------------------------------------------
+
+The preceding sections characterise a research landscape in which several
+active threads---biomarker-based AD classification, ensemble learning with
+calibration, HITL systems, conformal prediction, explainable AI, and active
+learning---have largely developed in isolation. Existing ML approaches to AD
+staging predominantly optimise predictive accuracy on held-out test sets without
+modelling the downstream clinical workflow in which predictions will be consumed.
+HITL frameworks in the medical AI literature have been studied primarily in
+radiology and image annotation contexts \citep{rajpurkar2022ai}, where the
+modality and annotation process differ qualitatively from tabular biomarker data.
+Conformal prediction has been applied to medical classification tasks but has
+not, to the authors' knowledge, been integrated into a multi-signal escalation
+engine for AD staging. Similarly, SHAP-based explainability and active learning
+feedback loops are well-established individually, but their combination within a
+single end-to-end AD staging pipeline has not been reported.
+
+This project occupies a specific gap at the intersection of these threads. Its
+contributions are as follows:
+
+\begin{enumerate}[nosep]
+  \item Stacked generalisation with probability calibration for three-class AD
+    staging on ADNI data, evaluated via leak-free out-of-fold cross-validation
+    with a separate held-out test set.
+  \item A multi-signal escalation engine combining seven distinct uncertainty and
+    data-quality indicators under a three-tier policy, with formal ablation of
+    each signal's contribution.
+  \item Conformal prediction sets (APS) providing finite-sample coverage
+    guarantees that are directly communicable to clinicians as set-valued
+    diagnoses.
+  \item An interactive clinical dashboard with real-time SHAP explanations, a
+    structured clinician feedback mechanism, and an active-learning retraining
+    loop.
+  \item A cost--benefit analysis under a clinically motivated asymmetric error
+    matrix and a fairness audit across demographic subgroups
+    \citep{mehrabi2021survey}.
+\end{enumerate}
+
+Together, these components constitute a more complete HITL framework for AD
+staging than has been reported in the existing literature: one that spans from
+raw biomarker data through uncertainty-aware classification, selective
+escalation, explainable review, and closed-loop model improvement.
+

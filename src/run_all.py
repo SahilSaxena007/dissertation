@@ -1,7 +1,7 @@
 # Author: Sahil Saxena (11409565)
 # University of Manchester, Department of Computer Science, 2025
 
-﻿"""
+"""
 Deterministic artifact regeneration script (fixed seed config).
 
 Usage (from src/):

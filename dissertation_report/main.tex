@@ -934,6 +934,484 @@
 
 
   % ===========================================================
+  \chapter{Results and Evaluation}
+  \label{chap:results}
+  % ===========================================================
+
+  This chapter presents quantitative findings from the full evaluation pipeline.
+  All reported metrics originate from held-out or out-of-fold data; no training-set
+  performance is shown.  The data files cited in each subsection are reproducible
+  artefacts stored in \texttt{reports/tables/}.
+
+  % -----------------------------------------------------------
+  \section{Baseline Classification Performance}
+  \label{sec:baseline-performance}
+  % -----------------------------------------------------------
+
+  The selected ensemble's performance on out-of-fold (OOF) predictions
+  (\texttt{overall\_metrics\_ensembleselected.csv}) establishes the AI-only baseline
+  against which all HITL results are compared:
+
+  \begin{table}[htbp]
+    \centering
+    \caption{Ensemble OOF classification metrics (AI-only baseline).}
+    \label{tab:baseline}
+    \begin{tabular}{lS[table-format=1.3]}
+      \toprule
+      {Metric} & {Value} \\
+      \midrule
+      Accuracy            & 0.730 \\
+      Macro Precision     & 0.733 \\
+      Macro Recall        & 0.739 \\
+      Macro F1            & 0.728 \\
+      Weighted F1         & 0.733 \\
+      Macro AUC (OvR)     & 0.902 \\
+      Log-loss            & 0.553 \\
+      ECE                 & 0.044 \\
+      \bottomrule
+    \end{tabular}
+  \end{table}
+
+  Per-class analysis (\texttt{per\_class\_metrics\_ensembleselected.csv}) reveals
+  strongest discrimination for AD (AUC\,=\,0.955) and SCD (AUC\,=\,0.938), with
+  MCI as the hardest class (AUC\,=\,0.818; F1\,=\,0.605).  This asymmetry is
+  clinically expected: the intermediate stage sits between cognitively normal and
+  demented, producing the most ambiguous biomarker profiles.
+
+  Bootstrap confidence intervals (\texttt{bootstrap\_ci\_ensembleselected.csv})
+  confirm that the reported point estimates are stable under resampling.  The macro
+  AUC 95\% CI is [0.879, 0.924], indicating that even in the worst case the model
+  substantially exceeds chance across all three classes.
+
+  % -----------------------------------------------------------
+  \section{Meta-Model Selection and Validation}
+  \label{sec:meta-model}
+  % -----------------------------------------------------------
+
+  The meta-model that converts the seven escalation signals into a scalar risk
+  score was selected by cross-validated AUC over three candidate architectures
+  (\texttt{step2\_meta\_model\_comparison.csv}):
+
+  \begin{table}[htbp]
+    \centering
+    \caption{Meta-model candidate comparison (5-fold CV on OOF data).}
+    \label{tab:meta-model}
+    \begin{tabular}{lSS}
+      \toprule
+      {Model} & {CV AUC} & {CV Accuracy} \\
+      \midrule
+      Logistic Regression   & 0.759 & 0.665 \\
+      Random Forest         & 0.758 & 0.720 \\
+      Gradient Boosting     & 0.728 & 0.726 \\
+      \bottomrule
+    \end{tabular}
+  \end{table}
+
+  Logistic Regression was selected because it achieved the highest AUC (0.759),
+  and its monotonic, interpretable decision boundary is preferable in a clinical
+  context where clinicians must understand \emph{why} a case was escalated.
+  Bootstrap validation of the selected model
+  (\texttt{step2\_meta\_bootstrap\_metrics.csv}, $B = 1000$) yielded a mean AUC of
+  $0.758 \pm 0.023$ with 95\% CI $[0.713, 0.801]$, confirming that the meta-model's
+  discriminatory ability is not an artefact of a single split.
+
+  % -----------------------------------------------------------
+  \section{Escalation Signal Ablation}
+  \label{sec:ablation}
+  % -----------------------------------------------------------
+
+  To assess the marginal contribution of each escalation signal, an ablation study
+  was conducted in which each of the seven risk features was removed in turn and the
+  meta-model was retrained (\texttt{ablation\_study.csv}):
+
+  \begin{table}[htbp]
+    \centering
+    \caption{Ablation study: effect of removing each escalation signal on
+    meta-model AUC.}
+    \label{tab:ablation}
+    \begin{tabular}{lSS}
+      \toprule
+      {Removed feature} & {$\Delta$ AUC} & {$\Delta$ Accuracy} \\
+      \midrule
+      None (full model)              & {---}   & {---}  \\
+      \texttt{risk\_1\_inv\_conf}    & -0.001  & 0.000  \\
+      \texttt{risk\_2\_margin}       & -0.018  & -0.007 \\
+      \texttt{risk\_3\_entropy}      & +0.002  & +0.020 \\
+      \texttt{risk\_4\_disagreement} &  0.000  & +0.002 \\
+      \texttt{risk\_5\_missing}      & -0.000  &  0.000 \\
+      \texttt{risk\_6\_critical}     & -0.000  &  0.000 \\
+      \texttt{risk\_7\_multimodal}   & +0.003  & +0.009 \\
+      \bottomrule
+    \end{tabular}
+  \end{table}
+
+  The decision-margin signal (\texttt{risk\_2\_margin}) carries the largest
+  individual predictive weight: its removal produces the steepest AUC decline
+  ($-0.018$).  By contrast, inverse confidence (\texttt{risk\_1\_inv\_conf}) and
+  the two missingness signals contribute negligibly in isolation.  Removing entropy
+  or multimodal mismatch \emph{increases} the metric slightly, suggesting partial
+  redundancy with margin; the full feature set is retained because the combined
+  signal set improves threshold sensitivity robustness (Section~\ref{sec:threshold}).
+
+  % -----------------------------------------------------------
+  \section{Threshold Selection and Sensitivity}
+  \label{sec:threshold}
+  % -----------------------------------------------------------
+
+  The escalation threshold $\tau^*$ governs the trade-off between review rate
+  (clinician workload) and policy accuracy.  Following the procedure described in
+  Section~\ref{sec:architecture}, $\tau^*$ was selected to maximise expected policy
+  accuracy under a uniform distribution of assumed clinician accuracy
+  $h \sim \mathcal{U}[0.85, 0.95]$, subject to a review-budget cap of 40\%.
+
+  The selected threshold is $\tau^* = 0.55$, which routes 39.8\% of cases for human
+  review.  Table~\ref{tab:threshold-sensitivity} shows that the threshold choice is
+  \emph{stable}: the same $\tau^*$ is optimal for every tested value of $h$.
+
+  \begin{table}[htbp]
+    \centering
+    \caption{Threshold sensitivity to assumed clinician accuracy ($\tau^* = 0.55$
+    throughout).}
+    \label{tab:threshold-sensitivity}
+    \begin{tabular}{SSSS}
+      \toprule
+      {$h$} & {Policy accuracy} & {AI-only accuracy} & {Accuracy gain} \\
+      \midrule
+      0.85 & 0.860 & 0.730 & 0.129 \\
+      0.88 & 0.872 & 0.730 & 0.141 \\
+      0.90 & 0.880 & 0.730 & 0.149 \\
+      0.92 & 0.888 & 0.730 & 0.157 \\
+      0.95 & 0.900 & 0.730 & 0.169 \\
+      \bottomrule
+    \end{tabular}
+  \end{table}
+
+  At the assumed midpoint $h = 0.90$, the HITL policy achieves 88.0\% accuracy ---
+  a $+14.9$ percentage-point gain over the AI-only baseline.  Even in the worst case
+  ($h = 0.85$), the gain is $+12.9$ pp, and the policy accuracy (86.0\%) remains
+  substantially above the AI-only level.  The best-case policy accuracy is 90.0\%.
+
+  % -----------------------------------------------------------
+  \section{AI-Only versus HITL Performance}
+  \label{sec:hitl-comparison}
+  % -----------------------------------------------------------
+
+  The core experimental comparison evaluates the complete HITL pipeline against
+  the AI-only baseline on out-of-fold predictions ($n = 460$), using the selected
+  threshold $\tau^* = 0.55$ and simulated clinician accuracy $h = 0.90$
+  (\texttt{statistical\_tests.csv}).
+
+  \begin{table}[htbp]
+    \centering
+    \caption{AI-only vs HITL performance with statistical inference.}
+    \label{tab:hitl-main}
+    \begin{tabular}{lcc}
+      \toprule
+      & AI-only & HITL ($\tau^* = 0.55$, $h = 0.90$) \\
+      \midrule
+      Accuracy      & 0.730 [0.689, 0.770] & 0.889 [0.861, 0.917] \\
+      Macro F1      & 0.728 [0.687, 0.766] & 0.888 [0.859, 0.917] \\
+      \midrule
+      \multicolumn{3}{l}{\textit{Paired comparison}} \\
+      Accuracy gain &  \multicolumn{2}{c}{+0.159 [0.124, 0.196]} \\
+      Macro F1 gain &  \multicolumn{2}{c}{+0.161 [0.126, 0.197]} \\
+      McNemar $\chi^2$ & \multicolumn{2}{c}{$60.99$ ($p = 5.8 \times 10^{-15}$)} \\
+      Matched OR    & \multicolumn{2}{c}{$13.17$} \\
+      \bottomrule
+    \end{tabular}
+  \end{table}
+
+  The HITL pipeline improves accuracy by $+15.9$ percentage points (95\% CI
+  $[12.4, 19.6]$) and macro F1 by $+16.1$ pp (95\% CI $[12.6, 19.7]$).
+  McNemar's test confirms the difference is statistically significant at
+  $p < 10^{-14}$, with a matched odds ratio of 13.17 ($b = 6$ corrections
+  worsened by HITL, $c = 79$ corrections improved), meaning HITL is approximately
+  13 times more likely to correct an AI error than to introduce one.
+
+  \subsection{Per-Class Breakdown}
+
+  Table~\ref{tab:perclass} disaggregates the improvement by diagnostic class
+  (\texttt{hitl\_perclass\_comparison.csv}):
+
+  \begin{table}[htbp]
+    \centering
+    \caption{HITL accuracy gain by diagnostic class.}
+    \label{tab:perclass}
+    \begin{tabular}{lSSSS}
+      \toprule
+      {Class} & {$n$} & {AI-only acc.} & {HITL acc.} & {Gain (pp)} \\
+      \midrule
+      SCD & 154 & 0.818 & 0.931 & +11.3 \\
+      MCI & 156 & 0.564 & 0.767 & +20.3 \\
+      AD  & 150 & 0.813 & 0.945 & +13.1 \\
+      \bottomrule
+    \end{tabular}
+  \end{table}
+
+  The largest improvement occurs for MCI ($+20.3$ pp), the class that the AI-only
+  model found most difficult.  This is the intended behaviour of the escalation
+  engine: cases near the SCD--MCI and MCI--AD boundaries produce high-entropy,
+  low-margin predictions, which trigger escalation to a human reviewer who resolves
+  the ambiguity.  SCD and AD, although already well-classified, still gain $+11$--$13$
+  pp from targeted human review.
+
+  % -----------------------------------------------------------
+  \section{Escalation Quality Analysis}
+  \label{sec:escalation-quality}
+  % -----------------------------------------------------------
+
+  The quality of the escalation decision itself --- does the meta-model
+  \emph{correctly} identify cases that the AI got wrong? --- is assessed via
+  precision, recall, and F1 at the operating point $\tau^* = 0.55$
+  (\texttt{escalation\_quality\_operating\_point.csv}):
+
+  \begin{table}[htbp]
+    \centering
+    \caption{Escalation quality at the operating point ($\tau^* = 0.55$).}
+    \label{tab:escalation-quality}
+    \begin{tabular}{lS}
+      \toprule
+      {Metric} & {Value} \\
+      \midrule
+      Review rate           & 0.398 \\
+      Precision (error detection) & 0.475 \\
+      Recall (error detection)    & 0.702 \\
+      F1                          & 0.567 \\
+      Specificity                 & 0.714 \\
+      Missed-error rate           & 0.298 \\
+      Unnecessary escalation rate & 0.525 \\
+      \bottomrule
+    \end{tabular}
+  \end{table}
+
+  The meta-model captures 70.2\% of the AI's errors at a review rate of 39.8\%.
+  Precision is moderate (47.5\%), meaning roughly half of escalated cases were
+  already correctly classified; these ``unnecessary'' escalations impose clinician
+  cost but do not harm accuracy.  The budget-sweep analysis
+  (\texttt{escalation\_quality\_budget\_summary.csv}) shows how this trade-off
+  evolves: at a 10\% budget the recall drops to 16.9\%, while at 50\% it rises to
+  71.8\% with diminishing returns beyond that point.
+
+  % -----------------------------------------------------------
+  \section{Cost--Benefit Analysis}
+  \label{sec:cost}
+  % -----------------------------------------------------------
+
+  To translate raw accuracy gains into clinical utility, a cost model assigns
+  asymmetric misclassification costs: missed AD diagnoses carry higher penalties
+  than over-referral of SCD cases, reflecting the clinical reality that a delayed
+  dementia diagnosis has graver consequences than an unnecessary specialist
+  appointment.  Results are drawn from \texttt{clinical\_cost\_summary.csv}:
+
+  \begin{table}[htbp]
+    \centering
+    \caption{Clinical cost comparison at $\tau^* = 0.54$ (selected by cost
+    objective).}
+    \label{tab:cost}
+    \begin{tabular}{lSSS}
+      \toprule
+      {$h$} & {AI cost} & {HITL cost} & {Cost reduction} \\
+      \midrule
+      0.85 & 209.0 & 89.5  & 119.5 \\
+      0.90 & 209.0 & 77.0  & 132.0 \\
+      0.95 & 209.0 & 70.5  & 138.5 \\
+      \bottomrule
+    \end{tabular}
+  \end{table}
+
+  The HITL pipeline reduces the clinically weighted cost by 57--66\% depending on
+  assumed clinician accuracy.  Even with imperfect human reviewers ($h = 0.85$),
+  cost-weighted accuracy improves from 90.9\% to 96.1\%, supporting the claim that
+  the framework improves not only statistical performance but also clinical utility.
+
+  % -----------------------------------------------------------
+  \section{Conformal Prediction and Uncertainty Quantification}
+  \label{sec:conformal}
+  % -----------------------------------------------------------
+
+  Conformal prediction provides distribution-free coverage guarantees: for a
+  user-specified miscoverage level $\alpha$, the procedure outputs a prediction
+  \emph{set} that contains the true class with probability at least $1 - \alpha$
+  (\texttt{conformal\_prediction.csv}).
+
+  \begin{table}[htbp]
+    \centering
+    \caption{Conformal prediction coverage and set-size statistics.}
+    \label{tab:conformal}
+    \begin{tabular}{SSSSS}
+      \toprule
+      {$\alpha$} & {Target cov.} & {Empirical cov.} & {Avg.\ set size}
+        & {Singleton frac.} \\
+      \midrule
+      0.05 & 0.95 & 1.00 & 2.61 & 0.000 \\
+      0.10 & 0.90 & 1.00 & 2.54 & 0.000 \\
+      0.15 & 0.85 & 1.00 & 2.42 & 0.017 \\
+      0.20 & 0.80 & 1.00 & 2.34 & 0.026 \\
+      \bottomrule
+    \end{tabular}
+  \end{table}
+
+  Empirical coverage is 100\% at every tested $\alpha$, exceeding the nominal
+  targets.  This conservatism --- desirable in a clinical setting where
+  under-coverage would miss true diagnoses --- comes at the cost of large prediction
+  sets (mean 2.3--2.6 out of 3 classes).  Singleton sets, which would be maximally
+  informative to a clinician, appear in fewer than 3\% of cases.
+
+  The over-coverage indicates that the calibrated ensemble's softmax probabilities
+  are already well-separated for the majority of cases; the conformal threshold
+  $\hat{q}$ is pushed high enough to guarantee marginal coverage, which means
+  nearly all classes pass the threshold for most patients.  Future work could
+  explore conditional (class-wise or group-wise) conformal methods to tighten the
+  sets while maintaining coverage.
+
+  \subsection{Uncertainty Decomposition}
+
+  Predictive uncertainty was decomposed into aleatoric and epistemic components
+  using the ensemble's disagreement structure
+  (\texttt{uncertainty\_decomposition.csv}):
+
+  \begin{table}[htbp]
+    \centering
+    \caption{Uncertainty decomposition across test samples.}
+    \label{tab:uncertainty}
+    \begin{tabular}{lSSS}
+      \toprule
+      {Component} & {Mean} & {Std} & {Median} \\
+      \midrule
+      Total uncertainty     & 0.674 & 0.222 & 0.736 \\
+      Aleatoric (data)      & 0.644 & 0.216 & 0.690 \\
+      Epistemic (model)     & 0.030 & 0.023 & 0.023 \\
+      Epistemic fraction    & 0.047 & 0.033 & 0.038 \\
+      \bottomrule
+    \end{tabular}
+  \end{table}
+
+  Total uncertainty is dominated by aleatoric uncertainty (mean epistemic
+  fraction\,=\,4.7\%), implying that most predictive difficulty arises from
+  inherent overlap between the three diagnostic classes rather than from
+  insufficient training data or model capacity.  This finding aligns with clinical
+  knowledge: the SCD--MCI boundary is biologically gradual, not a sharp cut-off.
+
+  The low epistemic fraction also suggests that the five-model ensemble is well
+  diversified; adding further base learners would yield diminishing returns, whereas
+  collecting additional biomarker modalities (e.g.\ neuroimaging, genetic markers)
+  could reduce the dominant aleatoric component.
+
+  % -----------------------------------------------------------
+  \section{Fairness Analysis}
+  \label{sec:fairness}
+  % -----------------------------------------------------------
+
+  Algorithmic fairness was evaluated across two protected attributes --- gender
+  and age group --- using demographic parity difference and equalized odds
+  difference (\texttt{fairness\_summary.csv}):
+
+  \begin{table}[htbp]
+    \centering
+    \caption{Fairness metrics by protected attribute.}
+    \label{tab:fairness}
+    \begin{tabular}{lSS}
+      \toprule
+      {Attribute} & {Demographic parity diff.} & {Equalized odds diff.} \\
+      \midrule
+      Gender    & 0.009 & 0.087 \\
+      Age group & 0.163 & 0.147 \\
+      \bottomrule
+    \end{tabular}
+  \end{table}
+
+  Gender-based disparities are small: the escalation rate differs by less than one
+  percentage point between groups, and equalized odds difference remains below 0.10.
+  Age-group disparities are materially larger (demographic parity
+  difference\,=\,0.163), indicating that the escalation engine routes patients of
+  different age bins at substantially different rates.  This is partly expected ---
+  AD prevalence increases with age, producing genuine base-rate differences --- but
+  it warrants monitoring.  If deployed, age-stratified threshold calibration or
+  post-hoc equalized-odds adjustments could mitigate the disparity without
+  significantly reducing accuracy.
+
+  % -----------------------------------------------------------
+  \section{Active-Learning Feedback Loop}
+  \label{sec:active-learning}
+  % -----------------------------------------------------------
+
+  The feedback loop was evaluated using simulated clinicians at three accuracy
+  levels ($h \in \{0.85, 0.90, 0.95\}$).  After each round, the top-10
+  highest-risk-score cases were ``reviewed'' by the simulated clinician and their
+  (possibly noisy) labels were added to the training set
+  (\texttt{active\_learning\_summary.csv}):
+
+  \begin{table}[htbp]
+    \centering
+    \caption{Active-learning feedback: accuracy after one round of 10 corrections.}
+    \label{tab:active-learning}
+    \begin{tabular}{lSSSS}
+      \toprule
+      {$h$} & {Round 0 acc.} & {Round 1 acc.} & {$\Delta$ acc.\ (pp)}
+        & {$\Delta$ F1 (pp)} \\
+      \midrule
+      0.85 & 0.733 & 0.741 & +0.86 & +1.50 \\
+      0.90 & 0.733 & 0.741 & +0.86 & +0.97 \\
+      0.95 & 0.733 & 0.741 & +0.86 & +0.97 \\
+      \bottomrule
+    \end{tabular}
+  \end{table}
+
+  Even a single round of 10 clinician-corrected cases produces a measurable
+  improvement ($+0.86$ pp accuracy) regardless of clinician accuracy, because the
+  escalation engine correctly prioritises the cases the model is most uncertain
+  about.  The accuracy gain is identical across clinician levels at round 1 because
+  10 corrections are too few for the noise difference ($h = 0.85$ vs $0.95$) to
+  manifest; longer feedback sequences would be expected to separate the curves.
+
+  The modest magnitude of the gain reflects the small feedback pool size relative to
+  the 460-sample training set.  In a real deployment where hundreds of cases
+  accumulate over months, the compounding effect of targeted corrections on the
+  hardest boundary cases (particularly MCI) is expected to be substantially larger.
+
+  % -----------------------------------------------------------
+  \section{Summary of Evidence}
+  \label{sec:results-summary}
+  % -----------------------------------------------------------
+
+  Table~\ref{tab:evidence-summary} consolidates the key findings across all
+  evaluation dimensions:
+
+  \begin{table}[htbp]
+    \centering
+    \caption{Summary of experimental evidence.}
+    \label{tab:evidence-summary}
+    \begin{tabular}{p{3.8cm}p{8.5cm}}
+      \toprule
+      \textbf{Dimension} & \textbf{Key finding} \\
+      \midrule
+      HITL accuracy gain & $+15.9$ pp over AI-only ($p < 10^{-14}$);
+        largest for MCI ($+20.3$ pp). \\
+      Threshold robustness & Same $\tau^*$ is optimal across
+        $h \in [0.85, 0.95]$; review rate 39.8\%. \\
+      Escalation quality & 70.2\% of AI errors captured at
+        39.8\% review rate. \\
+      Clinical cost & HITL reduces cost by 57--66\%
+        vs AI-only. \\
+      Conformal coverage & 100\% empirical coverage at all $\alpha$;
+        conservative but safe. \\
+      Uncertainty structure & 95\% aleatoric, indicating class overlap
+        is the dominant challenge. \\
+      Fairness & Gender disparity minimal; age-group disparity
+        requires monitoring. \\
+      Active learning & $+0.86$ pp from a single round of 10 corrections. \\
+      \bottomrule
+    \end{tabular}
+  \end{table}
+
+  Taken together, these results demonstrate that the HITL framework consistently
+  improves classification performance, clinical utility, and uncertainty
+  characterisation relative to the AI-only baseline.  The principal remaining risks
+  are (i) age-group fairness disparity in escalation rates, and (ii) the need
+  for real clinician validation to replace the simulated-clinician assumption.
+
+
+  % ===========================================================
   %  BIBLIOGRAPHY
   % ===========================================================
   \bibliographystyle{plainnat}

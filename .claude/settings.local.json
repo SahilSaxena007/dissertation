@@ -56,7 +56,9 @@
       "Bash(cmd.exe /c 'icacls \"C:\\\\Users\\\\sahil\\\\Documents\\\\Projects\\\\dissertation\\\\SahilSaxena.tar.gz\" /grant sahil:F')",
       "Bash(cmd.exe /c 'icacls \"C:\\\\Users\\\\sahil\\\\Documents\\\\Projects\\\\dissertation\\\\SahilSaxena.tar.gz\"')",
       "Bash(cmd.exe /c 'del \"C:\\\\Users\\\\sahil\\\\Documents\\\\Projects\\\\dissertation\\\\SahilSaxena.tar.gz\"')",
-      "Bash(powershell.exe -Command \"Set-Location 'C:\\\\Users\\\\sahil\\\\Documents\\\\Projects\\\\dissertation'; tar -czf SahilSaxena.tar.gz src README.md data Study_files; Write-Host 'Done'\" 2>&1)"
+      "Bash(powershell.exe -Command \"Set-Location 'C:\\\\Users\\\\sahil\\\\Documents\\\\Projects\\\\dissertation'; tar -czf SahilSaxena.tar.gz src README.md data Study_files; Write-Host 'Done'\" 2>&1)",
+      "Bash(python:*)",
+      "Bash(.venv/Scripts/python.exe:*)"
     ]
   }
 }

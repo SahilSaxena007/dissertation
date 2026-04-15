@@ -32,6 +32,11 @@ def main() -> int:
     _run("uncertainty_quantification.py")
     _run("efficiency_analysis.py")
     _run("agreement_analysis.py")
+    _run("threshold_tradeoff_plot.py")
+    _run("hitl_perclass_comparison.py")
+    _run("clinical_cost_plot.py")
+    _run("escalation_quality.py")
+    _run("active_learning_plot.py")
     print("Evaluation analysis suite completed successfully.")
     return 0
 

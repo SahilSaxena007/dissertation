@@ -1,7 +1,7 @@
 # Author: Sahil Saxena (11409565)
 # University of Manchester, Department of Computer Science, 2025
 
-﻿"""Central project config for reproducibility and orchestration."""
+"""Central project config for reproducibility and orchestration."""
 
 from __future__ import annotations
 

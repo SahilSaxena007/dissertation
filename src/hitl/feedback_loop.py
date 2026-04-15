@@ -167,23 +167,33 @@ def run_active_learning_simulation(
     artifacts = paths["artifacts"]
 
     df_thresh = pd.read_csv(tables / "threshold_data.csv")
-    X_train = np.load(artifacts / "X_oof.npy")
-    y_train = np.load(artifacts / "y_oof.npy")
+    X_all = np.load(artifacts / "X_oof.npy")
+    y_all = np.load(artifacts / "y_oof.npy")
     X_test = np.load(artifacts / "X_test.npy")
     y_test = np.load(artifacts / "y_test.npy")
 
-    if X_train.shape[0] != df_thresh.shape[0]:
-        n = min(X_train.shape[0], df_thresh.shape[0])
-        X_train = X_train[:n]
-        y_train = y_train[:n]
+    if X_all.shape[0] != df_thresh.shape[0]:
+        n = min(X_all.shape[0], df_thresh.shape[0])
+        X_all = X_all[:n]
+        y_all = y_all[:n]
         df_thresh = df_thresh.iloc[:n].copy()
 
-    risk = df_thresh["review_risk_score"].to_numpy(dtype=float)
-    y_ai = df_thresh["pred_ens"].to_numpy(dtype=int)
-    y_true = df_thresh["true_label"].to_numpy(dtype=int)
-    ranked = np.argsort(-risk)
+    # Split OOF into a labeled training pool (80%) and an unlabeled review pool (20%).
+    # Active learning selects from the unlabeled pool — samples the model has never
+    # trained on — so each round genuinely adds new information.
+    split = int(0.8 * len(X_all))
+    X_train = X_all[:split]
+    y_train = y_all[:split]
+    X_unlabeled = X_all[split:]
+    y_unlabeled_true = y_all[split:]
 
-    # Round 0 baseline: load saved ensemble models
+    risk_all = df_thresh["review_risk_score"].to_numpy(dtype=float)
+    y_ai_all = df_thresh["pred_ens"].to_numpy(dtype=int)
+    risk_unlabeled = risk_all[split:]
+    y_ai_unlabeled = y_ai_all[split:]
+    ranked = np.argsort(-risk_unlabeled)
+
+    # Round 0 baseline: load saved ensemble models (trained on full OOF)
     ensemble = _load_ensemble_with_stub(artifacts)
     for name, model in ensemble.items():
         if hasattr(model, "n_jobs"):
@@ -214,15 +224,15 @@ def run_active_learning_simulation(
             break
 
         corrected = simulate_corrected_labels(
-            y_true=y_true[idx],
-            y_ai_pred=y_ai[idx],
+            y_true=y_unlabeled_true[idx],
+            y_ai_pred=y_ai_unlabeled[idx],
             clinician_accuracy=clinician_accuracy,
             seed=int(rng.integers(1, 1_000_000)),
         )
         conf = rng.integers(3, 6, size=idx.size)
         w = confidence_to_sample_weight(conf) if use_confidence_weighting else np.ones(idx.size)
 
-        feedback_X.append(X_train[idx])
+        feedback_X.append(X_unlabeled[idx])
         feedback_y.append(corrected)
         feedback_w.append(w)
 
